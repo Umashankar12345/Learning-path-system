@@ -4,12 +4,49 @@
 
 :root {
   --font-sans: system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Oxygen, Ubuntu, Cantarell, "Open Sans", "Helvetica Neue", sans-serif;
+  --bg-neutral: #f8fafc;
+  --text-primary: #0f172a;
+  --text-secondary: #475467;
+  --border-subtle: #e2e8f0;
 }
 
 body {
   margin: 0;
   font-family: var(--font-sans);
-  background-color: #f8fafc;
-  color: #0f172a;
+  background-color: var(--bg-neutral);
+  color: var(--text-primary);
   -webkit-font-smoothing: antialiased;
+}
+
+@layer components {
+  /* Core Grid Layout for Professional Dashboard Shell */
+  .dashboard-shell {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr);
+    gap: 1.5rem;
+    max-inline-size: 90rem;
+    margin-inline: auto;
+    padding: 1rem;
+  }
+
+  @media (min-width: 1024px) {
+    .dashboard-shell {
+      grid-template-columns: 15rem minmax(0, 1fr);
+      padding: 1.5rem;
+    }
+  }
+
+  /* Senior-level card elevation and subtle gray border */
+  .dashboard-card {
+    background-color: #ffffff;
+    border: 1px solid #e2e8f0;
+    box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.05), 0 2px 4px -2px rgba(0, 0, 0, 0.05);
+    border-radius: 1rem;
+    transition: all 0.2s cubic-bezier(0.16, 1, 0.3, 1);
+  }
+
+  .dashboard-card:hover {
+    border-color: #cbd5e1;
+    box-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.08), 0 4px 6px -4px rgba(0, 0, 0, 0.04);
+  }
 }
