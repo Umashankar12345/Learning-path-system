@@ -1,0 +1,4 @@
+existing_projects/
+venv/
+.env
+backend/db.sqlite3
