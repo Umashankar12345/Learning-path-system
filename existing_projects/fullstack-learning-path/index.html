@@ -1,0 +1,704 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>Full-Stack TypeScript — Learning Path</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@500;600;700&family=Inter:wght@400;500;600&family=JetBrains+Mono:wght@500;700&display=swap" rel="stylesheet">
+<style>
+  :root{
+    --paper:#F2F4F8;
+    --surface:#FFFFFF;
+    --ink:#101828;
+    --ink-soft:#475467;
+    --ink-faint:#98A2B3;
+    --line:#E4E8EF;
+    --line-soft:#EEF1F6;
+    --indigo:#4F46E5;
+    --cyan:#06B6D4;
+    --amber:#F59E0B;
+    --amber-tint:#FFF8EC;
+    --emerald:#10B981;
+    --emerald-tint:#ECFDF5;
+    --grad: linear-gradient(180deg,#4F46E5 0%,#06B6D4 48%,#10B981 100%);
+    --grad-h: linear-gradient(90deg,#4F46E5 0%,#06B6D4 48%,#10B981 100%);
+    --display:'Space Grotesk',sans-serif;
+    --body:'Inter',sans-serif;
+    --mono:'JetBrains Mono',monospace;
+  }
+  *{box-sizing:border-box;}
+  html,body{margin:0;padding:0;}
+  body{
+    font-family:var(--body);
+    background:var(--paper);
+    color:var(--ink);
+    -webkit-font-smoothing:antialiased;
+    line-height:1.5;
+  }
+  a{color:var(--indigo);}
+  .mono{font-family:var(--mono);}
+
+  /* sticky overall meter */
+  .topbar{
+    position:sticky;top:0;z-index:20;
+    background:rgba(242,244,248,.86);
+    backdrop-filter:saturate(1.4) blur(8px);
+    border-bottom:1px solid var(--line);
+  }
+  .topbar-inner{
+    max-width:760px;margin:0 auto;padding:9px 20px;
+    display:flex;align-items:center;gap:12px;
+  }
+  .tb-pct{font-size:.82rem;font-weight:700;color:var(--ink);min-width:38px;}
+  .tb-meter{flex:1;height:6px;background:var(--line);border-radius:99px;overflow:hidden;}
+  .tb-meter>span{display:block;height:100%;width:0;background:var(--grad-h);border-radius:99px;transition:width .55s cubic-bezier(.2,.7,.2,1);}
+  .tb-count{font-size:.72rem;color:var(--ink-faint);}
+
+  .wrap{max-width:760px;margin:0 auto;padding:28px 20px 80px;}
+
+  /* header */
+  header.masthead{margin-bottom:26px;}
+  .eyebrow{
+    font-family:var(--mono);font-size:.68rem;font-weight:700;
+    letter-spacing:.18em;text-transform:uppercase;color:var(--indigo);
+    margin:0 0 10px;
+  }
+  h1{
+    font-family:var(--display);font-weight:700;
+    font-size:clamp(1.5rem,5.4vw,2.15rem);
+    line-height:1.08;letter-spacing:-.02em;margin:0 0 12px;
+  }
+  .lede{color:var(--ink-soft);font-size:.96rem;max-width:52ch;margin:0 0 18px;}
+  .learner{
+    display:inline-flex;align-items:center;gap:8px;
+    background:var(--surface);border:1px solid var(--line);
+    border-radius:99px;padding:6px 8px 6px 14px;
+  }
+  .learner label{font-family:var(--mono);font-size:.66rem;letter-spacing:.12em;text-transform:uppercase;color:var(--ink-faint);}
+  .learner input{
+    border:none;outline:none;background:transparent;font-family:var(--body);
+    font-size:.9rem;font-weight:600;color:var(--ink);width:150px;padding:4px 6px;
+    border-radius:8px;
+  }
+  .learner input:focus{background:var(--line-soft);}
+
+  /* path */
+  .phase{display:flex;gap:14px;}
+  .rail{width:36px;flex:none;display:flex;flex-direction:column;align-items:center;}
+  .node{
+    width:36px;height:36px;border-radius:50%;flex:none;
+    display:grid;place-items:center;
+    font-family:var(--mono);font-weight:700;font-size:.82rem;
+    background:var(--surface);border:2px solid var(--line);color:var(--ink-faint);
+    transition:all .35s ease;position:relative;z-index:1;
+  }
+  .node .num{display:block;}
+  .node .tick{display:none;width:15px;height:15px;}
+  .node.current{
+    border-color:var(--amber);color:var(--amber);
+    box-shadow:0 0 0 4px rgba(245,158,11,.16);
+    animation:pulse 2.4s ease-in-out infinite;
+  }
+  .node.done{background:var(--emerald);border-color:var(--emerald);color:#fff;}
+  .node.done .num{display:none;}
+  .node.done .tick{display:block;}
+  @keyframes pulse{0%,100%{box-shadow:0 0 0 4px rgba(245,158,11,.16);}50%{box-shadow:0 0 0 7px rgba(245,158,11,.05);}}
+  @media (prefers-reduced-motion:reduce){.node.current{animation:none;}}
+
+  .track{width:3px;flex:1 1 auto;min-height:20px;margin-top:6px;background:var(--line);border-radius:99px;position:relative;overflow:hidden;}
+  .track .fill{position:absolute;inset:0 0 auto 0;width:100%;height:0;background:var(--grad);transition:height .55s cubic-bezier(.2,.7,.2,1);}
+  .phase:last-child .track{display:none;}
+
+  /* card */
+  .card{
+    flex:1 1 auto;min-width:0;background:var(--surface);
+    border:1px solid var(--line);border-radius:16px;
+    margin-bottom:16px;overflow:hidden;
+    box-shadow:0 1px 2px rgba(16,24,40,.04);
+  }
+  .card.is-current{border-color:#F5D89B;box-shadow:0 3px 14px rgba(245,158,11,.10);}
+  .phase-head{
+    width:100%;text-align:left;border:none;background:none;cursor:pointer;
+    padding:15px 16px;font-family:var(--body);color:inherit;display:block;
+  }
+  .head-top{display:flex;align-items:center;gap:8px;flex-wrap:wrap;margin-bottom:7px;}
+  .pnum{font-family:var(--mono);font-size:.66rem;font-weight:700;letter-spacing:.14em;color:var(--ink-faint);text-transform:uppercase;}
+  .status{
+    margin-left:auto;font-family:var(--mono);font-size:.62rem;font-weight:700;
+    letter-spacing:.08em;text-transform:uppercase;padding:3px 8px;border-radius:99px;
+    background:var(--line-soft);color:var(--ink-soft);white-space:nowrap;
+  }
+  .status.s-current{background:var(--amber-tint);color:#B45309;}
+  .status.s-done{background:var(--emerald-tint);color:#047857;}
+  .phase-head h2{font-family:var(--display);font-weight:600;font-size:1.08rem;letter-spacing:-.01em;margin:0 0 5px;}
+  .goal{font-size:.86rem;color:var(--ink-soft);margin:0 0 12px;}
+  .headbar{display:flex;align-items:center;gap:10px;}
+  .mini-bar{flex:1;height:7px;background:var(--line);border-radius:99px;overflow:hidden;}
+  .mini-bar>span{display:block;height:100%;width:0;background:var(--grad-h);border-radius:99px;transition:width .5s ease;}
+  .count{font-family:var(--mono);font-size:.72rem;color:var(--ink-soft);min-width:42px;text-align:right;}
+  .chev{margin-left:2px;width:16px;height:16px;color:var(--ink-faint);transition:transform .3s ease;flex:none;}
+
+  .phase-body{display:none;padding:2px 16px 18px;}
+  .card.open .phase-body{display:block;}
+  .card.open .chev{transform:rotate(180deg);}
+
+  .sect-label{
+    font-family:var(--mono);font-size:.64rem;font-weight:700;letter-spacing:.14em;
+    text-transform:uppercase;color:var(--ink-faint);margin:16px 0 6px;
+  }
+
+  /* checklist */
+  .check{display:flex;gap:11px;align-items:flex-start;padding:7px 6px;border-radius:10px;cursor:pointer;user-select:none;}
+  .check:hover{background:#F7F9FC;}
+  .check input{position:absolute;opacity:0;width:0;height:0;}
+  .box{
+    width:21px;height:21px;flex:none;margin-top:1px;border-radius:6px;
+    border:2px solid var(--line);background:#fff;position:relative;transition:all .18s ease;
+  }
+  .box::after{
+    content:"";position:absolute;left:6px;top:2px;width:5px;height:10px;
+    border:solid #fff;border-width:0 2.5px 2.5px 0;transform:rotate(45deg) scale(0);
+    transition:transform .18s ease;
+  }
+  .check input:checked + .box{background:var(--emerald);border-color:var(--emerald);}
+  .check input:checked + .box::after{transform:rotate(45deg) scale(1);}
+  .check input:focus-visible + .box{box-shadow:0 0 0 3px rgba(79,70,229,.35);}
+  .ctext{font-size:.9rem;color:var(--ink);transition:color .18s ease;}
+  .check input:checked ~ .ctext{color:var(--ink-faint);}
+
+  /* go deep */
+  .godeep{
+    margin:14px 0 4px;padding:11px 14px;border-left:3px solid var(--amber);
+    background:var(--amber-tint);border-radius:0 10px 10px 0;
+  }
+  .godeep .gd-h{font-family:var(--mono);font-size:.64rem;font-weight:700;letter-spacing:.1em;text-transform:uppercase;color:#B45309;margin-bottom:3px;}
+  .godeep p{margin:0;font-size:.85rem;color:#7A4A08;}
+
+  /* milestone */
+  .milestone{
+    margin:16px 0 4px;padding:13px 14px;border:1.5px dashed #C7C2F5;
+    border-radius:13px;background:linear-gradient(180deg,#F7F6FE,#FFFFFF);
+  }
+  .milestone .ms-tag{display:inline-block;font-family:var(--mono);font-size:.6rem;font-weight:700;letter-spacing:.12em;text-transform:uppercase;color:var(--indigo);background:#EEEBFB;padding:2px 7px;border-radius:99px;margin-bottom:8px;}
+  .milestone .ms-tag.cap{color:#047857;background:var(--emerald-tint);}
+  .milestone .check{padding:0;}
+  .milestone .check:hover{background:transparent;}
+  .milestone .ctext{font-size:.88rem;}
+  .milestone .ctext b{font-weight:600;color:var(--ink);}
+
+  /* gate */
+  .gate{margin-top:16px;padding-top:13px;border-top:1px solid var(--line);}
+  .gate-head{display:flex;align-items:center;gap:8px;margin-bottom:2px;}
+  .gate-head .sect-label{margin:0;}
+  .gate-badge{
+    font-family:var(--mono);font-size:.6rem;font-weight:700;letter-spacing:.08em;
+    text-transform:uppercase;padding:3px 8px;border-radius:99px;
+    background:var(--line-soft);color:var(--ink-faint);transition:all .3s ease;
+  }
+  .gate-badge.ready{background:var(--emerald-tint);color:#047857;}
+  .gate-note{font-size:.82rem;color:var(--ink-soft);margin:2px 0 6px;}
+
+  /* resources */
+  .res{margin-top:6px;display:flex;flex-direction:column;gap:2px;}
+  .res a{
+    display:flex;align-items:baseline;gap:9px;text-decoration:none;
+    padding:8px 6px;border-radius:9px;color:var(--ink);
+  }
+  .res a:hover{background:#F7F9FC;}
+  .res .r-name{font-size:.88rem;font-weight:500;color:var(--indigo);}
+  .res .r-note{font-size:.78rem;color:var(--ink-faint);}
+  .res .r-arrow{margin-left:auto;color:var(--ink-faint);font-family:var(--mono);font-size:.8rem;}
+
+  /* notes */
+  .notes{margin-top:6px;}
+  .notes textarea{
+    width:100%;min-height:78px;resize:vertical;
+    font-family:var(--body);font-size:.88rem;line-height:1.5;color:var(--ink);
+    background:#FCFCFE;border:1px solid var(--line);border-radius:11px;
+    padding:11px 13px;transition:border-color .18s ease,box-shadow .18s ease;
+  }
+  .notes textarea::placeholder{color:var(--ink-faint);}
+  .notes textarea:focus{outline:none;border-color:#C7C2F5;box-shadow:0 0 0 3px rgba(79,70,229,.12);}
+  .notes-hint{font-size:.76rem;color:var(--ink-faint);margin:6px 2px 0;}
+  .notes-hint.has{color:#047857;}
+
+  .vnote{
+    margin:14px 0 2px;padding:11px 14px;border-radius:11px;
+    background:#F0F9FF;border:1px solid #CDE9FB;
+  }
+  .vnote .vn-h{font-family:var(--mono);font-size:.62rem;font-weight:700;letter-spacing:.1em;text-transform:uppercase;color:#0369A1;margin-bottom:3px;}
+  .vnote p{margin:0;font-size:.82rem;color:#0C4A6E;}
+
+  /* complete banner */
+  .done-banner{
+    display:none;margin:18px 0 6px;padding:16px;border-radius:14px;text-align:center;
+    background:var(--emerald-tint);border:1px solid #A7F3D0;
+  }
+  .done-banner.show{display:block;}
+  .done-banner .db-h{font-family:var(--display);font-weight:700;font-size:1.1rem;color:#047857;}
+  .done-banner p{margin:4px 0 0;font-size:.86rem;color:#065F46;}
+
+  /* footer */
+  footer{margin-top:30px;padding-top:18px;border-top:1px solid var(--line);color:var(--ink-faint);font-size:.8rem;}
+  .foot-row{display:flex;align-items:center;gap:12px;flex-wrap:wrap;}
+  .save-state{display:inline-flex;align-items:center;gap:6px;}
+  .save-dot{width:7px;height:7px;border-radius:50%;background:var(--emerald);}
+  .spine-method{margin:10px 0 16px;font-size:.82rem;color:var(--ink-soft);line-height:1.55;}
+  .reset-btn{
+    margin-left:auto;font-family:var(--mono);font-size:.72rem;font-weight:700;
+    letter-spacing:.04em;color:var(--ink-faint);background:none;border:1px solid var(--line);
+    padding:6px 12px;border-radius:99px;cursor:pointer;transition:all .2s ease;
+  }
+  .reset-btn:hover{color:#B42318;border-color:#FCA5A5;background:#FEF3F2;}
+  .reset-btn.arm{color:#B42318;border-color:#FCA5A5;background:#FEF3F2;}
+
+  @media (max-width:480px){
+    .wrap{padding:22px 15px 70px;}
+    .topbar-inner{padding:8px 15px;}
+    .learner input{width:120px;}
+  }
+</style>
+</head>
+<body>
+  <div class="topbar">
+    <div class="topbar-inner">
+      <span class="tb-pct mono" id="tbPct">0%</span>
+      <div class="tb-meter"><span id="tbMeter"></span></div>
+      <span class="tb-count mono" id="tbCount">0 / 0</span>
+    </div>
+  </div>
+
+  <div class="wrap">
+    <header class="masthead">
+      <p class="eyebrow">Mentored Track · Full-Stack TypeScript</p>
+      <h1>Your learning path</h1>
+      <p class="lede">Five phases, built in order — each one builds on the last. Check things off as you master them. This page is your single source of truth: it saves on its own and remembers where you are.</p>
+      <div class="learner">
+        <label for="nameInput">Learner</label>
+        <input id="nameInput" type="text" placeholder="Add your name" autocomplete="off" spellcheck="false" />
+      </div>
+    </header>
+
+    <div class="done-banner" id="doneBanner">
+      <div class="db-h">Path complete</div>
+      <p>Every phase done and every readiness gate cleared. You're a full-stack TypeScript developer now — go ship things.</p>
+    </div>
+
+    <main id="path"></main>
+
+    <footer>
+      <div class="spine-method">
+        <b>How to use this:</b> the bar on each phase tracks topics and the milestone build. The <em>readiness gate</em> at the bottom of a phase is the real test — only move on when you can do those things unaided. Tip from your mentor: <a href="https://fullstackopen.com/en/" target="_blank" rel="noopener">Full Stack Open</a> (free) can act as a spine for phases 2–4 if you want one continuous course alongside these resources.
+      </div>
+      <div class="foot-row">
+        <span class="save-state"><span class="save-dot"></span><span id="saveText">Progress saved automatically</span></span>
+        <button class="reset-btn" id="resetBtn">Reset progress</button>
+      </div>
+    </footer>
+  </div>
+
+<script>
+/* ---------- plan data ---------- */
+const PHASES = [
+  {
+    title:"JavaScript Fundamentals",
+    goal:"Close the gap from “basic JS” to solid modern JS. This is the foundation everything else rests on — don't rush it.",
+    topics:[
+      "Variables (let / const), data types, type coercion, == vs ===",
+      "Functions: declarations, expressions, arrow functions, default params",
+      "this — regular functions vs arrow functions",
+      "Scope (block / function / global) and closures",
+      "Arrays: .map, .filter, .reduce, .find, .forEach, .sort",
+      "Objects: destructuring, spread / rest, shorthand syntax",
+      "Loops and iteration (for, for…of, for…in)",
+      "Classes (constructor, methods, inheritance) — light touch",
+      "Modules: import / export (ESM)",
+      "Error handling: try / catch, throwing errors",
+      "Async: callbacks → Promises → async / await",
+      "The event loop (conceptual understanding)",
+      "JSON: parse / stringify",
+      "fetch and basic HTTP requests"
+    ],
+    goDeep:"Closures, the event loop, and this are where people fake understanding. Array methods (.map/.filter/.reduce) get used constantly in React — drill them until they're second nature.",
+    milestone:"A task tracker whose logic lives in <b>plain JS</b> — add / complete / delete tasks, filter by status, persist to localStorage, and fetch something from a public API. No framework yet.",
+    exits:[
+      "Refactor a callback-based function into async / await without help",
+      "Explain what a closure is with your own example",
+      "Use .map / .filter / .reduce comfortably on real data"
+    ],
+    resources:[
+      {name:"javascript.info", note:"primary — modern JS, deep & structured", url:"https://javascript.info"},
+      {name:"MDN Web Docs", note:"the reference to keep open", url:"https://developer.mozilla.org/en-US/docs/Web/JavaScript"},
+      {name:"The Odin Project — JavaScript", note:"free guided path + exercises", url:"https://www.theodinproject.com/paths/full-stack-javascript"},
+      {name:"freeCodeCamp — JS Algorithms", note:"optional logic drilling", url:"https://www.freecodecamp.org/learn/javascript-algorithms-and-data-structures/"}
+    ]
+  },
+  {
+    title:"React (in plain JavaScript)",
+    goal:"Think in components and state. This is where the work becomes visual and rewarding — lean into that for momentum.",
+    topics:[
+      "JSX syntax and rules",
+      "Function components (skip class components entirely)",
+      "Props and prop drilling",
+      "State with useState",
+      "Event handling in JSX",
+      "Conditional rendering; rendering lists and the key prop",
+      "useEffect: data fetching, cleanup, the dependency array",
+      "Forms and controlled inputs",
+      "Lifting state up",
+      "Context API (useContext) for basic shared state",
+      "Custom hooks (basic pattern)",
+      "Component composition (children)",
+      "React DevTools"
+    ],
+    goDeep:"useEffect dependency arrays are the #1 beginner trap — spend real time here. “State is the source of truth” with controlled inputs is the other foundational mental model.",
+    milestone:"Rebuild the tracker as a <b>React app</b> — component breakdown, useState for tasks, a controlled form to add them, filtering, and useEffect to load initial data. Still no backend.",
+    exits:[
+      "Break a UI into sensible components without prompting",
+      "Reason correctly about when a component re-renders",
+      "Build a controlled form end to end"
+    ],
+    resources:[
+      {name:"react.dev — Learn React", note:"primary — official, hooks-first, interactive", url:"https://react.dev/learn"},
+      {name:"Scrimba — Learn React", note:"interactive, project-based (Bob Ziroll)", url:"https://scrimba.com/learn-react-c0e"},
+      {name:"The Road to React", note:"hands-on book, one real app", url:"https://www.roadtoreact.com/"}
+    ]
+  },
+  {
+    title:"Node.js + Express",
+    goal:"Understand the server side and connect it to your React app — your first real full-stack moment.",
+    topics:[
+      "Node runtime basics: modules (CommonJS vs ESM), npm, package.json",
+      "File system basics (fs) — brief, for context",
+      "Express: creating a server",
+      "Routing (GET / POST / PUT / DELETE), route params, query strings",
+      "Middleware (built-in, third-party, custom)",
+      "The request / response cycle",
+      "Parsing JSON bodies (express.json())",
+      "Environment variables (.env, dotenv)",
+      "Database: PostgreSQL — basic CRUD",
+      "An ORM — Prisma",
+      "Basic auth (JWT or sessions — concept + simple build)",
+      "Error-handling middleware",
+      "CORS basics"
+    ],
+    goDeep:"Middleware and the request/response cycle are the core mental model of Express. Learn CORS early — you'll hit it the moment React talks to your API, and it's less frustrating when you understand it first.",
+    milestone:"A REST API for the tracker (tasks in PostgreSQL via Prisma), then <b>wire your Phase 2 React app to it</b> — real create / read / update / delete over HTTP. The payoff: a genuine full-stack app.",
+    exits:[
+      "Build a CRUD REST endpoint from scratch",
+      "Explain what middleware is and write a custom one",
+      "Connect a frontend to a backend and debug a CORS / network error yourself"
+    ],
+    resources:[
+      {name:"Full Stack Open — Parts 3–4", note:"primary — the Node/Express spine", url:"https://fullstackopen.com/en/"},
+      {name:"Express — official docs", note:"routing & middleware guide", url:"https://expressjs.com/en/guide/routing.html"},
+      {name:"Prisma — Get Started", note:"quickstart + CRUD", url:"https://www.prisma.io/docs/getting-started"},
+      {name:"The Odin Project — NodeJS", note:"free supplement with projects", url:"https://www.theodinproject.com/paths/full-stack-javascript/courses/nodejs"}
+    ]
+  },
+  {
+    title:"TypeScript",
+    goal:"Add type safety to something you already built. Don't start with a blank project — the point is retrofitting your React + Express code so you feel the problem TS solves.",
+    topics:[
+      "Basic types: string, number, boolean, arrays, tuples",
+      "interface vs type",
+      "Function typing (params, return types, optional / default)",
+      "Union and intersection types",
+      "Type inference vs explicit typing (when to let TS infer)",
+      "Generics (basic — functions, arrays)",
+      "enum",
+      "Typing React: props, state, event handlers, children",
+      "Typing Express: request / response, middleware",
+      "Utility types: Partial, Pick, Omit, Record",
+      "unknown vs any (and why to avoid any)",
+      "Type narrowing (typeof, instanceof, custom type guards)"
+    ],
+    goDeep:"interface vs type and when to reach for each. Resisting any is a discipline — build the habit now or it becomes a crutch that defeats the whole point.",
+    milestone:"Convert the tracker (React + Express) to <b>TypeScript incrementally</b> — shared types for the task model, typed props, typed API handlers. Aim to hit one real bug that types catch, and notice it.",
+    exits:[
+      "Type a React component's props and state confidently",
+      "Type an Express route handler",
+      "Explain why any defeats the purpose and use unknown correctly"
+    ],
+    resources:[
+      {name:"The TypeScript Handbook", note:"primary — official; “Everyday Types” & “Narrowing”", url:"https://www.typescriptlang.org/docs/handbook/intro.html"},
+      {name:"Total TypeScript", note:"best modern, practical TS teaching (Matt Pocock)", url:"https://www.totaltypescript.com/"},
+      {name:"typescript-exercises", note:"in-editor drills — use lightly", url:"https://typescript-exercises.github.io/"},
+      {name:"React TypeScript Cheatsheet", note:"typing props, hooks, events", url:"https://react-typescript-cheatsheet.netlify.app/"}
+    ]
+  },
+  {
+    title:"Next.js",
+    goal:"Bring it all together in the industry-default React framework. Everything here clicks pieces you already understand instead of introducing five new concepts at once.",
+    topics:[
+      "App Router structure (file-based routing)",
+      "Server Components vs Client Components (\"use client\")",
+      "Layouts and nested routing",
+      "Data fetching (server-side fetching, caching basics)",
+      "Server Actions (mutations without a separate API layer)",
+      "API routes (when a traditional endpoint is still needed)",
+      "Dynamic routes ([id])",
+      "Metadata API (SEO basics)",
+      "Environment variables in Next.js",
+      "Image optimization (next/image)",
+      "Loading and error states (loading.tsx, error.tsx)",
+      "Deployment to Vercel"
+    ],
+    goDeep:"Server vs Client Components is the defining Next.js mental model — and the thing most people get wrong first. Build intuition for when a Server Action fits vs a traditional API route.",
+    milestone:"Rebuild the tracker as a <b>deployed, typed Next.js app</b> — App Router, Server Components for data loading, Server Actions for mutations, Postgres/Prisma, live on Vercel. This is your capstone and portfolio flagship.",
+    capstone:true,
+    versionNote:"Next.js is on v16 with React 19, Turbopack as the default bundler, and Server Components by default. Make sure any tutorial you follow is App-Router-based (not the older Pages Router) — outdated Pages Router material is the #1 source of Next.js confusion.",
+    exits:[
+      "Explain when to use a Server vs Client Component",
+      "Build a feature end to end using a Server Action",
+      "Deploy a working app to Vercel"
+    ],
+    resources:[
+      {name:"Next.js Learn — Dashboard course", note:"primary — build-along App Router course", url:"https://nextjs.org/learn"},
+      {name:"Next.js docs — App Router", note:"current source of truth", url:"https://nextjs.org/docs/app"},
+      {name:"Full Stack Open — Part 7+", note:"bridging context if used as spine", url:"https://fullstackopen.com/en/"}
+    ]
+  }
+];
+
+/* ---------- ids ---------- */
+PHASES.forEach((p,i)=>{
+  const n=i+1;
+  p.itemIds=[];
+  p.topicIds=p.topics.map((_,t)=>{const id=`p${n}-t${t}`;p.itemIds.push(id);return id;});
+  p.milestoneId=`p${n}-m`; p.itemIds.push(p.milestoneId);
+  p.exitIds=p.exits.map((_,e)=>{const id=`p${n}-e${e}`;p.itemIds.push(id);return id;});
+});
+const ALL_ITEM_IDS=PHASES.flatMap(p=>p.itemIds);
+
+/* ---------- storage ---------- */
+const KEY='ftts-progress-v1';
+// Persists to the browser on her own device. Falls back to in-memory if storage is blocked (e.g. private mode).
+const store=(function(){
+  let ok=false;
+  try{const t='__t';window.localStorage.setItem(t,'1');window.localStorage.removeItem(t);ok=true;}catch(e){ok=false;}
+  if(ok){return{
+    get:async k=>{const v=window.localStorage.getItem(k);return v===null?null:{key:k,value:v};},
+    set:async(k,v)=>{window.localStorage.setItem(k,v);return{key:k,value:v};},
+    delete:async k=>{window.localStorage.removeItem(k);return{key:k,deleted:true};}
+  };}
+  const m={};return{get:async k=>k in m?{key:k,value:m[k]}:null,set:async(k,v)=>{m[k]=v;return{key:k,value:v};},delete:async k=>{delete m[k];return{key:k,deleted:true};}};
+})();
+let state={checked:{},expanded:{},notes:{},name:"",updatedAt:null};
+
+async function loadState(){
+  try{const r=await store.get(KEY);if(r&&r.value){const p=JSON.parse(r.value);
+    state.checked=p.checked||{};state.expanded=p.expanded||{};state.notes=p.notes||{};state.name=p.name||"";state.updatedAt=p.updatedAt||null;}
+  }catch(e){/* no saved state yet */}
+}
+let saveTimer=null;
+function scheduleSave(){
+  const t=document.getElementById('saveText');
+  if(t)t.textContent='Saving…';
+  clearTimeout(saveTimer);
+  saveTimer=setTimeout(async()=>{
+    state.updatedAt=Date.now();
+    try{await store.set(KEY,JSON.stringify(state));if(t)t.textContent=savedLabel();}
+    catch(e){if(t)t.textContent='Could not save — check connection';}
+  },350);
+}
+function savedLabel(){
+  if(!state.updatedAt)return'Progress saved automatically';
+  const d=new Date(state.updatedAt);
+  const time=d.toLocaleString(undefined,{month:'short',day:'numeric',hour:'numeric',minute:'2-digit'});
+  return'Saved · '+time;
+}
+
+/* ---------- build DOM ---------- */
+const TICK='<svg class="tick" viewBox="0 0 20 20" fill="none"><path d="M4 10l4 4 8-9" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"/></svg>';
+const CHEV='<svg class="chev" viewBox="0 0 20 20" fill="none"><path d="M5 8l5 5 5-5" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>';
+const refs={node:[],railFill:[],phaseBar:[],phaseCount:[],status:[],card:[],body:[],gateBadge:[]};
+
+function checkRow(id,text){
+  return `<label class="check"><input type="checkbox" data-id="${id}"><span class="box"></span><span class="ctext">${text}</span></label>`;
+}
+
+function buildPhase(p,i){
+  const n=i+1;
+  const el=document.createElement('div');el.className='phase';
+  const topics=p.topicIds.map((id,t)=>checkRow(id,p.topics[t])).join('');
+  const exits=p.exitIds.map((id,e)=>checkRow(id,p.exits[e])).join('');
+  const res=p.resources.map(r=>`<a href="${r.url}" target="_blank" rel="noopener"><span class="r-name">${r.name}</span><span class="r-note">${r.note}</span><span class="r-arrow">↗</span></a>`).join('');
+  const vnote=p.versionNote?`<div class="vnote"><div class="vn-h">Version note</div><p>${p.versionNote}</p></div>`:'';
+  const msTag=p.capstone?'<span class="ms-tag cap">Capstone</span>':'<span class="ms-tag">Milestone project</span>';
+
+  el.innerHTML=`
+    <div class="rail">
+      <div class="node" data-node="${i}"><span class="num">${n}</span>${TICK}</div>
+      <div class="track"><div class="fill" data-fill="${i}"></div></div>
+    </div>
+    <div class="card" data-card="${i}">
+      <button class="phase-head" data-head="${i}" aria-expanded="false">
+        <div class="head-top">
+          <span class="pnum">Phase 0${n}</span>
+          <span class="status" data-status="${i}">Upcoming</span>
+        </div>
+        <h2>${p.title}</h2>
+        <p class="goal">${p.goal}</p>
+        <div class="headbar">
+          <div class="mini-bar"><span data-bar="${i}"></span></div>
+          <span class="count" data-count="${i}">0/${p.itemIds.length}</span>
+          ${CHEV}
+        </div>
+      </button>
+      <div class="phase-body">
+        <div class="sect-label">Topics to master</div>
+        ${topics}
+        <div class="godeep"><div class="gd-h">Spend extra time here</div><p>${p.goDeep}</p></div>
+        <div class="milestone">${msTag}${checkRow(p.milestoneId,p.milestone)}</div>
+        ${vnote}
+        <div class="gate">
+          <div class="gate-head"><span class="sect-label">Readiness gate</span><span class="gate-badge" data-badge="${i}">Not yet</span></div>
+          <p class="gate-note">Only move to the next phase when you can do these on your own:</p>
+          ${exits}
+        </div>
+        <div class="sect-label">Resources</div>
+        <div class="res">${res}</div>
+        <div class="sect-label">Notes &amp; questions for our sessions</div>
+        <div class="notes">
+          <textarea data-note="${i}" rows="3" placeholder="Jot anything you're stuck on, questions to raise with your mentor, or links to your work…"></textarea>
+          <p class="notes-hint" data-notehint="${i}">Saved automatically — bring these to your next session.</p>
+        </div>
+      </div>
+    </div>`;
+  return el;
+}
+
+function render(){
+  const path=document.getElementById('path');
+  PHASES.forEach((p,i)=>path.appendChild(buildPhase(p,i)));
+  PHASES.forEach((p,i)=>{
+    refs.node[i]=document.querySelector(`[data-node="${i}"]`);
+    refs.railFill[i]=document.querySelector(`[data-fill="${i}"]`);
+    refs.phaseBar[i]=document.querySelector(`[data-bar="${i}"]`);
+    refs.phaseCount[i]=document.querySelector(`[data-count="${i}"]`);
+    refs.status[i]=document.querySelector(`[data-status="${i}"]`);
+    refs.card[i]=document.querySelector(`[data-card="${i}"]`);
+    refs.body[i]=refs.card[i].querySelector('.phase-body');
+    refs.gateBadge[i]=document.querySelector(`[data-badge="${i}"]`);
+    document.querySelector(`[data-head="${i}"]`).addEventListener('click',()=>toggleExpand(i));
+  });
+  document.querySelectorAll('input[type="checkbox"][data-id]').forEach(cb=>{
+    cb.addEventListener('change',()=>{state.checked[cb.dataset.id]=cb.checked;scheduleSave();recompute();});
+  });
+  document.querySelectorAll('textarea[data-note]').forEach(ta=>{
+    ta.addEventListener('input',()=>{
+      const i=ta.dataset.note;
+      state.notes[i]=ta.value;
+      updateNoteHint(i);
+      scheduleSave();
+    });
+  });
+}
+function updateNoteHint(i){
+  const hint=document.querySelector(`[data-notehint="${i}"]`);
+  if(!hint)return;
+  const has=(state.notes[i]||'').trim().length>0;
+  hint.classList.toggle('has',has);
+  hint.textContent=has?'Saved — bring these to your next session.':'Saved automatically — bring these to your next session.';
+}
+
+/* ---------- expand ---------- */
+function setExpand(i,open){
+  refs.card[i].classList.toggle('open',open);
+  refs.card[i].querySelector('[data-head]').setAttribute('aria-expanded',open?'true':'false');
+}
+function toggleExpand(i){
+  const open=!refs.card[i].classList.contains('open');
+  state.expanded[i]=open;setExpand(i,open);scheduleSave();
+}
+
+/* ---------- compute ---------- */
+function phaseFrac(p){
+  const done=p.itemIds.filter(id=>state.checked[id]).length;
+  return{done,total:p.itemIds.length,frac:p.itemIds.length?done/p.itemIds.length:0};
+}
+function recompute(){
+  let oDone=0,oTotal=0,current=-1;
+  const fracs=PHASES.map(p=>{const f=phaseFrac(p);oDone+=f.done;oTotal+=f.total;return f;});
+  for(let i=0;i<PHASES.length;i++){if(fracs[i].frac<1){current=i;break;}}
+
+  PHASES.forEach((p,i)=>{
+    const f=fracs[i];
+    refs.phaseBar[i].style.width=(f.frac*100)+'%';
+    refs.railFill[i].style.height=(f.frac*100)+'%';
+    refs.phaseCount[i].textContent=f.done+'/'+f.total;
+    // node
+    const node=refs.node[i];node.classList.remove('done','current');
+    if(f.frac>=1)node.classList.add('done');
+    else if(i===current)node.classList.add('current');
+    // status chip
+    const st=refs.status[i];st.classList.remove('s-current','s-done');
+    if(f.frac>=1){st.textContent='Complete';st.classList.add('s-done');}
+    else if(i===current){st.textContent=(f.done===0?'Start here':'In progress');st.classList.add('s-current');}
+    else st.textContent='Upcoming';
+    // card highlight
+    refs.card[i].classList.toggle('is-current',i===current);
+    // gate badge
+    const gateReady=p.exitIds.every(id=>state.checked[id]);
+    const b=refs.gateBadge[i];b.classList.toggle('ready',gateReady);
+    b.textContent=gateReady?'Ready to advance':'Not yet';
+  });
+
+  const pct=oTotal?Math.round(oDone/oTotal*100):0;
+  document.getElementById('tbMeter').style.width=pct+'%';
+  document.getElementById('tbPct').textContent=pct+'%';
+  document.getElementById('tbCount').textContent=oDone+' / '+oTotal;
+  document.getElementById('doneBanner').classList.toggle('show',oDone===oTotal&&oTotal>0);
+}
+
+/* ---------- apply saved ---------- */
+function applyState(){
+  document.querySelectorAll('input[type="checkbox"][data-id]').forEach(cb=>{cb.checked=!!state.checked[cb.dataset.id];});
+  document.querySelectorAll('textarea[data-note]').forEach(ta=>{
+    const i=ta.dataset.note;ta.value=state.notes[i]||'';updateNoteHint(i);
+  });
+  document.getElementById('nameInput').value=state.name||'';
+  // expanded: default to current phase if nothing saved
+  const hasSaved=Object.keys(state.expanded).length>0;
+  if(!hasSaved){
+    let cur=0;for(let i=0;i<PHASES.length;i++){if(phaseFrac(PHASES[i]).frac<1){cur=i;break;}}
+    state.expanded[cur]=true;
+  }
+  PHASES.forEach((p,i)=>setExpand(i,!!state.expanded[i]));
+  document.getElementById('saveText').textContent=savedLabel();
+}
+
+/* ---------- name ---------- */
+function initName(){
+  const inp=document.getElementById('nameInput');
+  inp.addEventListener('input',()=>{state.name=inp.value.slice(0,40);scheduleSave();});
+}
+
+/* ---------- reset (two-step) ---------- */
+function initReset(){
+  const btn=document.getElementById('resetBtn');let armed=false,t=null;
+  btn.addEventListener('click',()=>{
+    if(!armed){armed=true;btn.classList.add('arm');btn.textContent='Tap again to confirm';
+      t=setTimeout(()=>{armed=false;btn.classList.remove('arm');btn.textContent='Reset progress';},3500);return;}
+    clearTimeout(t);armed=false;btn.classList.remove('arm');btn.textContent='Reset progress';
+    state.checked={};
+    document.querySelectorAll('input[type="checkbox"][data-id]').forEach(cb=>cb.checked=false);
+    scheduleSave();recompute();
+  });
+}
+
+/* ---------- boot ---------- */
+(async function(){
+  render();
+  await loadState();
+  applyState();
+  recompute();
+  initName();
+  initReset();
+})();
+</script>
+</body>
+</html>
