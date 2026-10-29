@@ -16,20 +16,7 @@ def seed():
     setup_instructor_group()
     print("[OK] Instructor group configured.")
 
-    # 2. Create demo users if not present
-    demo_user, created = User.objects.get_or_create(
-        username="learner_demo",
-        defaults={
-            "email": "learner@example.com",
-            "first_name": "Alex",
-            "last_name": "Learner",
-        }
-    )
-    if created:
-        demo_user.set_password("LearnerPass123!")
-        demo_user.save()
-        print(f"[OK] Created demo user: {demo_user.username}")
-
+    # 2. Create superuser if not present
     admin_user, admin_created = User.objects.get_or_create(
         username="admin",
         defaults={
@@ -266,20 +253,7 @@ def seed():
             defaults=item,
         )
 
-    # 6. Generate an initial learning path for the demo user
-    demo_path, _ = LearningPath.objects.get_or_create(user=demo_user, skill=ds_skill)
-    items = PathRecommender.generate_path_items(demo_path)
-
-    # Mark the first 2 items completed to give realistic DB data
-    if len(items) >= 2:
-        items[0].mark_complete()
-        items[0].rating = 5
-        items[0].save()
-        items[1].mark_complete()
-        items[1].rating = 4
-        items[1].save()
-
-    print(f"[OK] Seeded skills, resources, and demo learning path with {len(items)} items.")
+    print("[OK] Seeded skills and resources catalog successfully.")
 
 if __name__ == "__main__":
     seed()

@@ -10,6 +10,7 @@ from rest_framework import generics, status, views
 from rest_framework.response import Response
 from rest_framework.permissions import AllowAny, IsAuthenticated
 from rest_framework_simplejwt.tokens import RefreshToken
+from drf_spectacular.utils import extend_schema, OpenApiParameter, OpenApiTypes
 
 from .models import Skill, Resource, LearningPath, PathItem
 from .serializers import (
@@ -27,10 +28,12 @@ from .notifications import send_welcome_email, send_streak_email, send_completio
 from .certificates import generate_completion_certificate
 
 
+@extend_schema(
+    summary="Register a new learner",
+    description="Creates a new learner account, sends a welcome email, and returns JWT tokens.",
+    tags=["Authentication"],
+)
 class SignupView(generics.CreateAPIView):
-    """
-    Register a new learner account and return JWT credentials.
-    """
     queryset = User.objects.all()
     serializer_class = SignupSerializer
     permission_classes = [AllowAny]
@@ -57,11 +60,12 @@ class SignupView(generics.CreateAPIView):
         )
 
 
+@extend_schema(
+    summary="Sign in or register with Google OAuth",
+    description="Authenticates via Google credential/token, auto-provisions account if needed, and returns JWT credentials.",
+    tags=["Authentication"],
+)
 class GoogleAuthView(views.APIView):
-    """
-    Authenticate or Register via Google OAuth ID Token.
-    Returns standard JWT access & refresh tokens.
-    """
     permission_classes = [AllowAny]
 
     def post(self, request):
@@ -78,7 +82,7 @@ class GoogleAuthView(views.APIView):
         user_email = email
         user_name = name or ""
 
-        # Verify Google Token if google-auth installed and token provided
+        # Verify Google Token if token provided
         if token:
             try:
                 from google.oauth2 import id_token
@@ -93,7 +97,6 @@ class GoogleAuthView(views.APIView):
                 user_email = id_info.get("email", user_email)
                 user_name = id_info.get("name", user_name)
             except Exception as e:
-                # Fallback for dev / mock testing
                 if not user_email:
                     return Response(
                         {"error": f"Invalid Google token: {str(e)}"},
@@ -129,29 +132,43 @@ class GoogleAuthView(views.APIView):
         )
 
 
+@extend_schema(
+    summary="Get current user profile",
+    description="Returns the profile information of the currently authenticated user.",
+    tags=["Authentication"],
+    responses=UserSerializer,
+)
 class MeView(views.APIView):
-    """
-    Return current authenticated user profile.
-    """
     permission_classes = [IsAuthenticated]
 
     def get(self, request):
         return Response(UserSerializer(request.user).data)
 
 
+@extend_schema(
+    summary="List available skill goals",
+    description="Retrieves all learning skill goals available for enrollment.",
+    tags=["Catalog"],
+    responses=SkillSerializer(many=True),
+)
 class SkillListView(generics.ListAPIView):
-    """
-    List all available skill goals (e.g., Data Science, Full-Stack Development).
-    """
     queryset = Skill.objects.all().prefetch_related("resources")
     serializer_class = SkillSerializer
     permission_classes = [AllowAny]
 
 
+@extend_schema(
+    summary="Filter resources",
+    description="Browse learning resources with optional filtering by skill, difficulty level, or resource type.",
+    tags=["Catalog"],
+    parameters=[
+        OpenApiParameter("skill", OpenApiTypes.INT, description="Filter by Skill ID"),
+        OpenApiParameter("difficulty", OpenApiTypes.INT, description="Filter by difficulty (1, 2, 3)"),
+        OpenApiParameter("type", OpenApiTypes.STR, description="Filter by resource type (video, article, course, project)"),
+    ],
+    responses=ResourceSerializer(many=True),
+)
 class ResourceListView(generics.ListAPIView):
-    """
-    List and filter learning resources.
-    """
     serializer_class = ResourceSerializer
     permission_classes = [IsAuthenticated]
 
@@ -170,10 +187,12 @@ class ResourceListView(generics.ListAPIView):
         return queryset
 
 
+@extend_schema(
+    summary="List or create learning paths",
+    description="List active learning paths for the user or generate an ordered path from a skill.",
+    tags=["Learning Paths"],
+)
 class LearningPathListCreateView(generics.ListCreateAPIView):
-    """
-    List user's active paths or generate a new path from a skill.
-    """
     serializer_class = LearningPathSerializer
     permission_classes = [IsAuthenticated]
 
@@ -210,10 +229,13 @@ class LearningPathListCreateView(generics.ListCreateAPIView):
         )
 
 
+@extend_schema(
+    summary="Get learning path details",
+    description="Retrieve the complete learning path with all difficulty-ranked milestones and completion statuses.",
+    tags=["Learning Paths"],
+    responses=LearningPathDetailSerializer,
+)
 class LearningPathDetailView(generics.RetrieveDestroyAPIView):
-    """
-    Retrieve full path details including all ordered PathItems.
-    """
     serializer_class = LearningPathDetailSerializer
     permission_classes = [IsAuthenticated, IsOwner]
 
@@ -225,11 +247,13 @@ class LearningPathDetailView(generics.RetrieveDestroyAPIView):
         )
 
 
+@extend_schema(
+    summary="Mark milestone complete or incomplete",
+    description="Toggles the completion state of a milestone, logs the timestamp, and triggers celebratory notifications.",
+    tags=["Milestones"],
+    responses=PathItemSerializer,
+)
 class MarkItemCompleteView(views.APIView):
-    """
-    POST to toggle completion state of a PathItem (saves completed_at).
-    Triggers streak and completion email notifications.
-    """
     permission_classes = [IsAuthenticated]
 
     def post(self, request, pk):
@@ -255,10 +279,13 @@ class MarkItemCompleteView(views.APIView):
         return Response(PathItemSerializer(item).data, status=status.HTTP_200_OK)
 
 
+@extend_schema(
+    summary="Rate a learning milestone",
+    description="Submit an integer rating from 1 to 5 stars for a specific learning module.",
+    tags=["Milestones"],
+    responses=PathItemSerializer,
+)
 class RateItemView(views.APIView):
-    """
-    POST to set a 1-5 rating on a PathItem.
-    """
     permission_classes = [IsAuthenticated]
 
     def post(self, request, pk):
@@ -276,10 +303,12 @@ class RateItemView(views.APIView):
         return Response(PathItemSerializer(item).data, status=status.HTTP_200_OK)
 
 
+@extend_schema(
+    summary="Download PDF Certificate of Completion",
+    description="Generates an official personalized PDF Certificate of Completion with verification ID.",
+    tags=["Certificates"],
+)
 class CertificateDownloadView(views.APIView):
-    """
-    Generates and downloads an official PDF Certificate of Completion.
-    """
     permission_classes = [IsAuthenticated]
 
     def get(self, request, pk):
@@ -292,25 +321,30 @@ class CertificateDownloadView(views.APIView):
         return response
 
 
+@extend_schema(
+    summary="Community Leaderboard",
+    description="Live rankings of active learners by completed study hours and milestones (hides admin and zero-progress accounts).",
+    tags=["Community"],
+)
 class LeaderboardView(views.APIView):
-    """
-    Community Leaderboard ranking learners by total completed modules,
-    hours learned, streaks, and achievement badges.
-    """
     permission_classes = [AllowAny]
 
     def get(self, request):
-        users = User.objects.filter(is_active=True).annotate(
-            completed_items_count=Count("learning_paths__items", filter=Q(learning_paths__items__completed=True)),
-            total_paths=Count("learning_paths", distinct=True)
-        )
+        # Rule 1: Hide staff / admin accounts
+        # Rule 2: Only include users with real completed progress
+        users = User.objects.filter(is_active=True, is_staff=False, is_superuser=False)
 
         leaderboard = []
         for u in users:
             items = PathItem.objects.filter(path__user=u, completed=True)
+            completed_count = items.count()
+
+            # Rule 2: Hide users with zero completed items
+            if completed_count == 0:
+                continue
+
             duration_sum = items.aggregate(total=Sum("resource__duration_minutes"))["total"] or 0
             hours = round(duration_sum / 60.0, 1)
-            completed_count = items.count()
 
             # Dynamic badges
             badges = []
@@ -337,25 +371,19 @@ class LeaderboardView(views.APIView):
         # Sort by hours_learned descending, then completed_count
         leaderboard.sort(key=lambda x: (x["hours_learned"], x["completed_count"]), reverse=True)
 
-        # Add rank
+        # Add 1-based rank
         for idx, entry in enumerate(leaderboard, start=1):
             entry["rank"] = idx
 
         return Response(leaderboard)
 
 
+@extend_schema(
+    summary="Personalized Dashboard Metrics",
+    description="Calculates live analytics: active paths, completion rate, hours learned, day streak, and next recommendation.",
+    tags=["Dashboard"],
+)
 class DashboardStatsView(views.APIView):
-    """
-    Dashboard metrics queried live from the database:
-    - Active paths count
-    - Completed vs Total items
-    - Overall completion percentage
-    - Total hours learned
-    - Day streak
-    - Progress bars per path
-    - Next recommended item
-    - Weekly hours activity
-    """
     permission_classes = [IsAuthenticated]
 
     def get(self, request):

@@ -135,15 +135,55 @@ class LearningPathAPITestCase(TestCase):
         self.assertEqual(response["Content-Type"], "application/pdf")
         self.assertTrue(len(response.content) > 1000)
 
-    def test_leaderboard_endpoint(self):
-        """Test leaderboard returns ranked users with badges."""
+    def test_leaderboard_hides_staff_and_zero_progress_and_ranks_correctly(self):
+        """
+        Verify:
+        1. Staff/admin users are hidden from the leaderboard.
+        2. Users with 0 completions are hidden (board starts empty and fills with real activity).
+        3. Learner B (more completed hours) is ranked #1, Learner A is ranked #2.
+        """
+        # User 1 completes 1 item (60 mins = 1.0 hr)
+        path1 = LearningPath.objects.create(user=self.user1, skill=self.skill)
+        PathItem.objects.create(path=path1, resource=self.resource1, order=1, completed=True)
+
+        # User 2 completes 2 items (60 mins + 60 mins = 120 mins = 2.0 hrs)
+        path2 = LearningPath.objects.create(user=self.user2, skill=self.skill)
+        PathItem.objects.create(path=path2, resource=self.resource1, order=1, completed=True)
+        PathItem.objects.create(path=path2, resource=self.resource2, order=2, completed=True)
+
+        # Create user 3 with 0 completions
+        user3 = User.objects.create_user(username="zero_progress", password="Password123!")
+        LearningPath.objects.create(user=user3, skill=self.skill)
+
+        # Create staff user with completions
+        staff_user = User.objects.create_user(username="admin_staff", is_staff=True, password="Password123!")
+        staff_path = LearningPath.objects.create(user=staff_user, skill=self.skill)
+        PathItem.objects.create(path=staff_path, resource=self.resource3, order=1, completed=True)
+
         url = reverse("leaderboard")
         response = self.client.get(url)
         self.assertEqual(response.status_code, status.HTTP_200_OK)
-        self.assertIsInstance(response.data, list)
-        self.assertTrue(len(response.data) >= 2)
-        self.assertIn("rank", response.data[0])
-        self.assertIn("badges", response.data[0])
+
+        data = response.data
+        usernames = [entry["username"] for entry in data]
+
+        # Verify staff and zero-progress users are excluded
+        self.assertNotIn("admin_staff", usernames)
+        self.assertNotIn("zero_progress", usernames)
+
+        # Verify exactly user2 and user1 are present
+        self.assertEqual(len(data), 2)
+
+        # Verify ranking order: User 2 is Rank #1 (2.0 hrs), User 1 is Rank #2 (1.0 hr)
+        self.assertEqual(data[0]["username"], self.user2.username)
+        self.assertEqual(data[0]["rank"], 1)
+        self.assertEqual(data[0]["hours_learned"], 2.0)
+        self.assertEqual(data[0]["completed_count"], 2)
+
+        self.assertEqual(data[1]["username"], self.user1.username)
+        self.assertEqual(data[1]["rank"], 2)
+        self.assertEqual(data[1]["hours_learned"], 1.0)
+        self.assertEqual(data[1]["completed_count"], 1)
 
     def test_swagger_schema_endpoint(self):
         """Test OpenAPI schema generation."""

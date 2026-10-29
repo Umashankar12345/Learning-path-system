@@ -57,11 +57,7 @@ export default function LoginPage() {
     }
   };
 
-  const fillDemo = () => {
-    setUsername("learner_demo");
-    setPassword("LearnerPass123!");
-    toast.info("Filled demo learner credentials!");
-  };
+
 
   return (
     <div className="min-h-[85vh] flex flex-col justify-center py-12 px-4 sm:px-6 lg:px-8">
@@ -172,20 +168,12 @@ export default function LoginPage() {
             </button>
           </form>
 
-          {/* Demo account shortcut */}
-          <div className="mt-6 pt-6 border-t border-slate-100 flex flex-col gap-3.5">
-            <button
-              type="button"
-              onClick={fillDemo}
-              className="w-full py-2.5 px-4 text-xs font-bold text-indigo-700 bg-indigo-50 hover:bg-indigo-100 rounded-xl transition-colors border border-indigo-200 flex items-center justify-center gap-2"
-            >
-              <KeyRound className="w-4 h-4 text-indigo-500" />
-              Use Pre-seeded Demo Credentials (learner_demo)
-            </button>
-            <p className="text-center text-xs text-slate-500 font-medium">
+          {/* Account helpers */}
+          <div className="mt-6 pt-6 border-t border-slate-100 flex flex-col gap-3">
+            <p className="text-center text-sm text-slate-600 font-medium">
               Don't have an account?{" "}
               <Link to="/signup" className="font-bold text-indigo-600 hover:text-indigo-500 underline">
-                Create one now
+                Sign up for free
               </Link>
             </p>
           </div>

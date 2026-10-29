@@ -1,6 +1,7 @@
 from rest_framework import serializers
 from django.contrib.auth.models import User
 from django.contrib.auth.password_validation import validate_password
+from drf_spectacular.utils import extend_schema_field
 from .models import Skill, Resource, LearningPath, PathItem
 
 class UserSerializer(serializers.ModelSerializer):
@@ -59,6 +60,7 @@ class SkillSerializer(serializers.ModelSerializer):
         model = Skill
         fields = ("id", "name", "description", "category", "resource_count", "created_at")
 
+    @extend_schema_field(serializers.IntegerField)
     def get_resource_count(self, obj):
         return obj.resources.count()
 
@@ -89,11 +91,11 @@ class LearningPathSerializer(serializers.ModelSerializer):
     skill_id = serializers.PrimaryKeyRelatedField(
         queryset=Skill.objects.all(), source="skill", write_only=True
     )
-    total_items = serializers.ReadOnlyField()
-    completed_items = serializers.ReadOnlyField()
-    progress_percentage = serializers.ReadOnlyField()
-    total_duration_minutes = serializers.ReadOnlyField()
-    completed_duration_minutes = serializers.ReadOnlyField()
+    total_items = serializers.IntegerField(read_only=True)
+    completed_items = serializers.IntegerField(read_only=True)
+    progress_percentage = serializers.FloatField(read_only=True)
+    total_duration_minutes = serializers.IntegerField(read_only=True)
+    completed_duration_minutes = serializers.IntegerField(read_only=True)
 
     class Meta:
         model = LearningPath
@@ -116,11 +118,11 @@ class LearningPathSerializer(serializers.ModelSerializer):
 class LearningPathDetailSerializer(serializers.ModelSerializer):
     skill = SkillSerializer(read_only=True)
     items = PathItemSerializer(many=True, read_only=True)
-    total_items = serializers.ReadOnlyField()
-    completed_items = serializers.ReadOnlyField()
-    progress_percentage = serializers.ReadOnlyField()
-    total_duration_minutes = serializers.ReadOnlyField()
-    completed_duration_minutes = serializers.ReadOnlyField()
+    total_items = serializers.IntegerField(read_only=True)
+    completed_items = serializers.IntegerField(read_only=True)
+    progress_percentage = serializers.FloatField(read_only=True)
+    total_duration_minutes = serializers.IntegerField(read_only=True)
+    completed_duration_minutes = serializers.IntegerField(read_only=True)
 
     class Meta:
         model = LearningPath
