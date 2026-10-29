@@ -28,6 +28,7 @@ INSTALLED_APPS = [
     "corsheaders",
     "rest_framework",
     "rest_framework_simplejwt",
+    "drf_spectacular",
     # Project apps
     "learning",
 ]
@@ -110,6 +111,10 @@ STATIC_ROOT = BASE_DIR / "staticfiles"
 
 DEFAULT_AUTO_FIELD = "django.db.models.BigAutoField"
 
+# Email Configuration (Console in dev, SMTP in prod)
+EMAIL_BACKEND = os.getenv("DJANGO_EMAIL_BACKEND", "django.core.mail.backends.console.EmailBackend")
+DEFAULT_FROM_EMAIL = os.getenv("DEFAULT_FROM_EMAIL", "LearningPath <noreply@learningpath.ai>")
+
 # Django REST Framework Configuration
 REST_FRAMEWORK = {
     "DEFAULT_AUTHENTICATION_CLASSES": (
@@ -119,6 +124,16 @@ REST_FRAMEWORK = {
     "DEFAULT_PERMISSION_CLASSES": (
         "rest_framework.permissions.IsAuthenticated",
     ),
+    "DEFAULT_SCHEMA_CLASS": "drf_spectacular.openapi.AutoSchema",
+}
+
+# OpenAPI / Swagger UI Settings (drf-spectacular)
+SPECTACULAR_SETTINGS = {
+    "TITLE": "Learning Path Recommendation & Analytics API",
+    "DESCRIPTION": "OpenAPI specification for the Adaptive Learning Path Dashboard system.",
+    "VERSION": "1.0.0",
+    "SERVE_INCLUDE_SCHEMA": False,
+    "COMPONENT_SPLIT_REQUEST": True,
 }
 
 # SimpleJWT Configuration

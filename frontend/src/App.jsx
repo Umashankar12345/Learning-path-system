@@ -12,6 +12,7 @@ import SignupPage from "./pages/SignupPage";
 import SkillsPage from "./pages/SkillsPage";
 import DashboardPage from "./pages/DashboardPage";
 import PathDetailPage from "./pages/PathDetailPage";
+import LeaderboardPage from "./pages/LeaderboardPage";
 
 function App() {
   return (
@@ -26,6 +27,7 @@ function App() {
                 <Route path="/login" element={<LoginPage />} />
                 <Route path="/signup" element={<SignupPage />} />
                 <Route path="/skills" element={<SkillsPage />} />
+                <Route path="/leaderboard" element={<LeaderboardPage />} />
                 <Route
                   path="/dashboard"
                   element={

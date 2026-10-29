@@ -1,157 +1,117 @@
 # Learning Path Dashboard
 
-An intelligent web application where users sign up, select a skill goal (such as **"Python for Data Science"** or **"Full-Stack Web Development"**), and receive a structured, difficulty-ranked learning path. The app tracks individual progress, records completion timestamps and ratings, and visualizes real database analytics in a personal dashboard.
+An enterprise-ready, full-stack learning platform where users sign up, choose a skill goal (such as **"Python for Data Science"**, **"Full-Stack Web Development"**, or **"Django Backend"**), and get an ordered, difficulty-ranked learning roadmap.
+
+The system tracks real learning progress, awards milestone badges, hosts a community leaderboard, sends email notifications, and auto-generates official PDF Certificates of Completion.
 
 ---
 
 ## Architecture Overview
 
 ```mermaid
-graph LR
-    Learner["Learner / User"] --> ReactUI["React + Vite Frontend (Port 5173)"]
-    Admin["Instructor / Admin"] --> DjangoAdmin["Django Admin (Port 8000/admin/)"]
-    ReactUI -->|JWT Auth & REST API| DjangoBackend["Django REST Framework Backend (Port 8000)"]
-    DjangoBackend --> Models["Relational Database (SQLite / PostgreSQL)"]
-    DjangoBackend --> Recommender["Recommender Module"]
-    Models --> Skill["Skill"]
-    Models --> Resource["Resource"]
-    Models --> LearningPath["LearningPath"]
-    Models --> PathItem["PathItem"]
+graph TD
+    Learner["Learner / Browser"] --> ReactUI["React 19 + Vite Frontend (Port 5173 / Port 80)"]
+    Admin["Instructor / Admin"] --> DjangoAdmin["Django Admin (/admin/)"]
+    Swagger["Developer / Engineer"] --> SwaggerUI["Swagger OpenAPI Docs (/api/docs/)"]
+    
+    ReactUI -->|JWT Auth / REST API| DjangoBackend["Django REST Framework Backend (Port 8000)"]
+    DjangoAdmin --> DjangoBackend
+    SwaggerUI --> DjangoBackend
+
+    DjangoBackend --> Models["Relational Database (PostgreSQL / SQLite)"]
+    DjangoBackend --> Recommender["Difficulty Recommender Engine"]
+    DjangoBackend --> PDF["ReportLab PDF Certificate Engine"]
+    DjangoBackend --> Emails["Email Notification Engine"]
+    DjangoBackend --> Leaderboard["Dynamic Leaderboard & Badges"]
 ```
 
-### Relational Data Models (Unit V)
-- **`Skill`**: Subject or goal (`name`, `description`, `category`).
-- **`Resource`**: Learning resource with foreign key to `Skill` (`title`, `url`, `resource_type`, `difficulty` [1=Beginner, 2=Intermediate, 3=Advanced], `duration_minutes`).
-- **`LearningPath`**: Learner's enrolled path with foreign keys to `User` and `Skill` (`created_at`, `updated_at`).
-- **`PathItem`**: Ordered resource milestone with foreign keys to `LearningPath` and `Resource` (`order`, `completed`, `completed_at`, `rating` [1-5 stars]).
+---
+
+## 🌟 6 Production Enterprise Features
+
+### 1. REST API with Interactive Swagger Docs
+- Built with **`drf-spectacular`** conforming to OpenAPI 3.0.
+- Interactive Swagger UI: [http://127.0.0.1:8000/api/docs/](http://127.0.0.1:8000/api/docs/)
+- Redoc API Documentation: [http://127.0.0.1:8000/api/redoc/](http://127.0.0.1:8000/api/redoc/)
+- Raw OpenAPI JSON/YAML Schema: [http://127.0.0.1:8000/api/schema/](http://127.0.0.1:8000/api/schema/)
+
+### 2. Google OAuth & JWT Authentication
+- One-click Google Sign-In button on both `/login` and `/signup`.
+- Backed by `POST /api/auth/google/` with token verification, user provisioning, and secure JWT issuance.
+
+### 3. Automated Email Notifications
+- **Welcome Email:** Triggered automatically upon registration.
+- **Streak Celebrations:** Fires on milestone consecutive day streaks (3, 5, 7, 14, 30 days).
+- **Track Completion:** Congratulatory email with direct link to download the PDF certificate when a learner hits 100%.
+- Development backend logs directly to console (`console.EmailBackend`), production switches to SMTP via `.env`.
+
+### 4. Achievement Badges, Community Leaderboard & PDF Certificates
+- **Leaderboard (`/leaderboard`):** Real-time podium ranking top learners by completed hours, modules, and streak.
+- **Milestone Badges:** Automatically earned (First Milestone, Consistent Learner, Skill Scholar, Deep Diver, Track Champion).
+- **Official PDF Certificate:** Generated via ReportLab (`GET /api/paths/<id>/certificate/`) with cryptographic verification ID, custom styling, issue date, and director signature.
+
+### 5. Automated CI/CD with GitHub Actions
+- Workflow located at [`.github/workflows/ci.yml`](./.github/workflows/ci.yml).
+- Automatically triggers on every `push` and `pull_request` to `main`:
+  - Runs all 9 Django backend unit tests.
+  - Verifies database migrations.
+  - Builds the React + Vite production bundle.
+
+### 6. Docker & Docker Compose
+Spin up the entire stack (PostgreSQL 16, Redis 7, Django REST backend, and React/Nginx frontend) in one command:
+```bash
+docker compose up --build
+```
+- Frontend: `http://localhost:5173` or `http://localhost:80`
+- Backend: `http://localhost:8000`
+- Database: PostgreSQL on port `5432`
 
 ---
 
-## Preserved Reference Projects
+## Local Setup on Windows (Without Docker)
 
-All original reference repositories provided in Downloads are preserved under [`existing_projects/`](./existing_projects/):
-- **[`existing_projects/LearningPathDashboard/`](./existing_projects/LearningPathDashboard/)**: Original React/Vite dashboard layout.
-- **[`existing_projects/fullstack-learning-path/`](./existing_projects/fullstack-learning-path/)**: Interactive Full-Stack TypeScript roadmap with milestone rail.
-- **[`existing_projects/LearnPress-Learning-Path-Dashboard/`](./existing_projects/LearnPress-Learning-Path-Dashboard/)**: Course sequencing plugin reference.
-- **[`existing_projects/Data-Science-learning-path/`](./existing_projects/Data-Science-learning-path/)**: Comprehensive curriculum and 5 ML projects used to seed the database.
-
----
-
-## Prerequisites (Windows)
-
-- **Python**: 3.10+ (Verified on Python 3.14.6)
-- **Node.js**: 18+ (Verified on Node v22.20.0)
-- **npm**: 9+ (Verified on npm 11.5.2)
-
----
-
-## Setup & Running on Windows
-
-### 1. Clone or Open the Project
-Open PowerShell inside `c:\Users\hp\OneDrive\Desktop\project\Djangoprojects`:
+### 1. Backend (Django REST Framework)
 ```powershell
-cd c:\Users\hp\OneDrive\Desktop\project\Djangoprojects
+cd backend
+python -m pip install -r ../requirements.txt
+python manage.py migrate
+python seed_data.py
+python manage.py runserver 0.0.0.0:8000
 ```
 
-### 2. Backend Setup (Django & DRF)
-
-1. Open PowerShell and install backend dependencies:
-   ```powershell
-   python -m pip install -r requirements.txt
-   ```
-
-2. Run migrations to generate the database schema:
-   ```powershell
-   cd backend
-   python manage.py makemigrations
-   python manage.py migrate
-   ```
-
-3. Populate real skills, resources, and demo accounts:
-   ```powershell
-   python seed_data.py
-   ```
-
-4. Start the Django development server:
-   ```powershell
-   python manage.py runserver 0.0.0.0:8000
-   ```
-   Backend will be running at `http://127.0.0.1:8000`.
-
----
-
-### 3. Frontend Setup (React & Vite)
-
-1. In a new PowerShell window, navigate to `frontend`:
-   ```powershell
-   cd c:\Users\hp\OneDrive\Desktop\project\Djangoprojects\frontend
-   ```
-
-2. Install dependencies:
-   ```powershell
-   npm install
-   ```
-
-3. Launch the Vite dev server:
-   ```powershell
-   npm run dev
-   ```
-   Frontend will be running at `http://localhost:5173`.
+### 2. Frontend (React + Vite)
+```powershell
+cd frontend
+npm install
+npm run dev
+```
+Open **[http://localhost:5173/](http://localhost:5173/)**.
 
 ---
 
 ## Pre-configured Demo Accounts
 
-After running `seed_data.py`, the following accounts are ready to use:
-
-| Role | Username | Password | Purpose |
-| :--- | :--- | :--- | :--- |
-| **Learner** | `learner_demo` | `LearnerPass123!` | Has pre-enrolled paths with real completion logs & streak |
-| **Admin** | `admin` | `AdminPass123!` | Access to Django Admin (`/admin/`) and Instructor management |
+| Role | Username | Password |
+| :--- | :--- | :--- |
+| **Learner** | `learner_demo` | `LearnerPass123!` |
+| **Admin** | `admin` | `AdminPass123!` |
 
 ---
 
 ## Running the Automated Test Suite
 
-To verify user signup, learning path generation, difficulty ordering, completion toggle, real database analytics, and user isolation:
-
 ```powershell
-cd c:\Users\hp\OneDrive\Desktop\project\Djangoprojects\backend
-python manage.py test
+cd backend
+python manage.py test learning
 ```
 
-Expected output:
-```text
-Creating test database for alias 'default'...
-.....
-----------------------------------------------------------------------
-Ran 5 tests in ~3.0s
-
-OK
-```
-
----
-
-## API Endpoints Reference
-
-| Method | Endpoint | Description | Auth Required |
-| :--- | :--- | :--- | :--- |
-| `POST` | `/api/auth/signup/` | Register new learner account | No |
-| `POST` | `/api/auth/login/` | Obtain JWT access and refresh tokens | No |
-| `GET` | `/api/auth/me/` | Fetch current user profile | Yes (Bearer token) |
-| `GET` | `/api/skills/` | List all available skill goals | No |
-| `GET` | `/api/resources/` | Filter resources by skill or difficulty | Yes |
-| `GET` | `/api/paths/` | List current user's enrolled paths | Yes |
-| `POST` | `/api/paths/` | Generate difficulty-ranked path from skill | Yes |
-| `GET` | `/api/paths/<id>/` | Fetch path detail with ordered items | Yes |
-| `POST` | `/api/items/<id>/complete/` | Toggle completion status (`completed_at`) | Yes |
-| `POST` | `/api/items/<id>/rate/` | Rate resource (1–5 stars) | Yes |
-| `GET` | `/api/dashboard/stats/` | Live database analytics & weekly activity | Yes |
-
----
-
-## Instructor Group Permissions (Unit V & VI)
-
-The `seed_data.py` script automatically configures an **Instructor** permission group in Django Admin:
-- Instructors can add, change, and view `Skill` and `Resource` models.
-- Instructors **cannot** delete `User` accounts.
+Test coverage includes:
+- User signup & JWT token creation
+- Google OAuth login endpoint
+- Difficulty-ranked path generation (Level 1 $\rightarrow$ 2 $\rightarrow$ 3)
+- Module completion timestamps & 5-star ratings
+- Dynamic leaderboard & badge calculation
+- PDF certificate binary generation
+- Swagger OpenAPI schema generation
+- Database analytics metrics verification
+- Strict user data isolation

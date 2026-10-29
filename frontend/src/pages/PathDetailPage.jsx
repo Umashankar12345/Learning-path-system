@@ -16,6 +16,8 @@ import {
   Loader2,
   Award,
   Sparkles,
+  Download,
+  FileCheck,
 } from "lucide-react";
 
 export default function PathDetailPage() {
@@ -23,6 +25,7 @@ export default function PathDetailPage() {
   const [path, setPath] = useState(null);
   const [loading, setLoading] = useState(true);
   const [updatingId, setUpdatingId] = useState(null);
+  const [downloadingCert, setDownloadingCert] = useState(false);
   const [hoveredStars, setHoveredStars] = useState({});
   const toast = useToast();
 
@@ -56,7 +59,6 @@ export default function PathDetailPage() {
         toast.info(`Marked "${item.resource.title}" as incomplete.`);
       }
 
-      // Refresh path to update progress bar and stats
       await fetchPath();
     } catch (err) {
       console.error("Failed to toggle completion:", err);
@@ -70,7 +72,6 @@ export default function PathDetailPage() {
     try {
       await api.post(`/items/${itemId}/rate/`, { rating: ratingValue });
       toast.success(`Rating recorded: ${ratingValue} / 5 stars`);
-      // Update local state smoothly
       setPath((prev) => {
         if (!prev) return prev;
         return {
@@ -83,6 +84,32 @@ export default function PathDetailPage() {
     } catch (err) {
       console.error("Failed to rate item:", err);
       toast.error("Unable to save rating.");
+    }
+  };
+
+  const handleDownloadCertificate = async () => {
+    setDownloadingCert(true);
+    toast.info("Generating your official PDF certificate...");
+    try {
+      const response = await api.get(`/paths/${id}/certificate/`, {
+        responseType: "blob",
+      });
+
+      const url = window.URL.createObjectURL(new Blob([response.data], { type: "application/pdf" }));
+      const link = document.createElement("a");
+      link.href = url;
+      link.setAttribute("download", `Certificate_${path.skill.name.replace(/\s+/g, "_")}.pdf`);
+      document.body.appendChild(link);
+      link.click();
+      link.parentNode.removeChild(link);
+      window.URL.revokeObjectURL(url);
+
+      toast.success("Certificate downloaded successfully! 🎓");
+    } catch (err) {
+      console.error("Failed to download certificate:", err);
+      toast.error("Failed to generate certificate. Please try again.");
+    } finally {
+      setDownloadingCert(false);
     }
   };
 
@@ -193,7 +220,7 @@ export default function PathDetailPage() {
         <div className="bg-white rounded-3xl border border-slate-200 p-8 sm:p-10 shadow-sm">
           <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-6 mb-6">
             <div>
-              <div className="flex items-center gap-2 mb-2">
+              <div className="flex flex-wrap items-center gap-2 mb-2">
                 <span className="text-xs font-bold uppercase tracking-wider text-indigo-700 bg-indigo-50 px-3 py-1 rounded-full border border-indigo-200">
                   {path.skill.category}
                 </span>
@@ -219,7 +246,7 @@ export default function PathDetailPage() {
             </div>
           </div>
 
-          <p className="text-base sm:text-lg text-slate-600 leading-relaxed mb-8">
+          <p className="text-base sm:text-lg text-slate-600 leading-relaxed mb-6">
             {path.skill.description || "Master this domain through an ordered, difficulty-ranked curriculum."}
           </p>
 
@@ -235,6 +262,43 @@ export default function PathDetailPage() {
                 style={{ width: `${path.progress_percentage}%` }}
               ></div>
             </div>
+          </div>
+
+          {/* Certificate Download Banner */}
+          <div className="mt-8 pt-6 border-t border-slate-100 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 bg-indigo-50/50 p-5 rounded-2xl border border-indigo-100">
+            <div className="flex items-center gap-3">
+              <div className="w-10 h-10 rounded-xl bg-indigo-600 text-white flex items-center justify-center flex-shrink-0 shadow-sm">
+                <FileCheck className="w-5 h-5" />
+              </div>
+              <div>
+                <h4 className="text-sm font-bold text-slate-900">
+                  Official Certificate of Completion
+                </h4>
+                <p className="text-xs text-slate-600">
+                  {path.progress_percentage === 100
+                    ? "Congratulations! You have earned your verified certificate."
+                    : `Complete all ${path.total_items} modules to unlock your certificate (or preview now).`}
+                </p>
+              </div>
+            </div>
+
+            <button
+              onClick={handleDownloadCertificate}
+              disabled={downloadingCert}
+              className="inline-flex items-center gap-2 px-4 py-2.5 rounded-xl text-xs font-bold text-white bg-indigo-600 hover:bg-indigo-700 transition-all shadow-sm disabled:opacity-50 flex-shrink-0"
+            >
+              {downloadingCert ? (
+                <>
+                  <Loader2 className="w-4 h-4 animate-spin" />
+                  Generating PDF...
+                </>
+              ) : (
+                <>
+                  <Download className="w-4 h-4" />
+                  Download PDF
+                </>
+              )}
+            </button>
           </div>
         </div>
 
