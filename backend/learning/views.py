@@ -2,6 +2,7 @@ import os
 import json
 from datetime import timedelta
 from django.utils import timezone
+from django.conf import settings
 from django.db.models import Sum, Count, Q
 from django.contrib.auth.models import User
 from django.shortcuts import get_object_or_404
@@ -9,11 +10,25 @@ from django.http import HttpResponse
 from rest_framework import generics, status, views
 from rest_framework.response import Response
 from rest_framework.permissions import AllowAny, IsAuthenticated
+from rest_framework.throttling import ScopedRateThrottle
 from rest_framework_simplejwt.tokens import RefreshToken
 from drf_spectacular.utils import extend_schema, OpenApiParameter, OpenApiTypes
 
-from .models import Skill, Resource, LearningPath, PathItem
+from .models import (
+    CodingAttempt,
+    CodingChallenge,
+    Skill,
+    Resource,
+    LearningPath,
+    PathItem,
+    ProjectSubmission,
+)
 from .serializers import (
+    CodeSubmissionSerializer,
+    CodingAttemptSerializer,
+    CodingAttemptStartSerializer,
+    CodingAttemptResultSerializer,
+    CodingChallengeSerializer,
     UserSerializer,
     SignupSerializer,
     SkillSerializer,
@@ -21,11 +36,13 @@ from .serializers import (
     LearningPathSerializer,
     LearningPathDetailSerializer,
     PathItemSerializer,
+    ProjectSubmissionSerializer,
 )
 from .permissions import IsOwner
 from .recommender import PathRecommender
 from .notifications import send_welcome_email, send_streak_email, send_completion_email
 from .certificates import generate_completion_certificate
+from .judge import JudgeConfigurationError, JudgeServiceError, run_test_case
 
 
 @extend_schema(
@@ -73,35 +90,43 @@ class GoogleAuthView(views.APIView):
         email = request.data.get("email")
         name = request.data.get("name")
 
-        if not token and not email:
+        if not token:
             return Response(
-                {"error": "Google credential or email is required."},
+                {"error": "A verified Google credential is required."},
                 status=status.HTTP_400_BAD_REQUEST,
             )
 
         user_email = email
         user_name = name or ""
 
-        # Verify Google Token if token provided
-        if token:
-            try:
-                from google.oauth2 import id_token
-                from google.auth.transport import requests as google_requests
+        client_id = os.getenv("GOOGLE_CLIENT_ID", "")
+        if not client_id or "your-google-web-client-id" in client_id:
+            return Response(
+                {"error": "Google sign-in is not configured. Set GOOGLE_CLIENT_ID."},
+                status=status.HTTP_503_SERVICE_UNAVAILABLE,
+            )
 
-                client_id = os.getenv("GOOGLE_CLIENT_ID", "")
-                id_info = id_token.verify_oauth2_token(
-                    token,
-                    google_requests.Request(),
-                    client_id if client_id else None,
+        try:
+            from google.oauth2 import id_token
+            from google.auth.transport import requests as google_requests
+
+            id_info = id_token.verify_oauth2_token(
+                token,
+                google_requests.Request(),
+                client_id,
+            )
+            user_email = id_info.get("email")
+            user_name = id_info.get("name", user_name)
+            if not user_email or not id_info.get("email_verified", False):
+                return Response(
+                    {"error": "Google account must have a verified email address."},
+                    status=status.HTTP_400_BAD_REQUEST,
                 )
-                user_email = id_info.get("email", user_email)
-                user_name = id_info.get("name", user_name)
-            except Exception as e:
-                if not user_email:
-                    return Response(
-                        {"error": f"Invalid Google token: {str(e)}"},
-                        status=status.HTTP_400_BAD_REQUEST,
-                    )
+        except Exception as e:
+            return Response(
+                {"error": f"Invalid Google credential: {str(e)}"},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
 
         username = user_email.split("@")[0]
         user, created = User.objects.get_or_create(
@@ -301,6 +326,203 @@ class RateItemView(views.APIView):
         item.rating = int(rating)
         item.save(update_fields=["rating"])
         return Response(PathItemSerializer(item).data, status=status.HTTP_200_OK)
+
+
+@extend_schema(
+    summary="Submit or update a GitHub project",
+    description="Learners submit a GitHub repository for a project milestone. Instructors review it in Django Admin.",
+    request=ProjectSubmissionSerializer,
+    responses=ProjectSubmissionSerializer,
+    tags=["Project Reviews"],
+)
+class ProjectSubmissionView(views.APIView):
+    permission_classes = [IsAuthenticated]
+
+    def post(self, request, pk):
+        item = get_object_or_404(
+            PathItem.objects.select_related("resource", "path"),
+            pk=pk,
+            path__user=request.user,
+        )
+        if item.resource.resource_type != "project":
+            return Response(
+                {"error": "GitHub submissions are only available for project milestones."},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+
+        serializer = ProjectSubmissionSerializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+        submission, created = ProjectSubmission.objects.get_or_create(item=item)
+        submission.github_url = serializer.validated_data["github_url"]
+        submission.reflection = serializer.validated_data.get("reflection", "")
+        submission.status = ProjectSubmission.ReviewStatus.PENDING
+        submission.teacher_feedback = ""
+        submission.reviewed_at = None
+        submission.reviewed_by = None
+        submission.save()
+        return Response(
+            ProjectSubmissionSerializer(submission).data,
+            status=status.HTTP_201_CREATED if created else status.HTTP_200_OK,
+        )
+
+
+@extend_schema(
+    summary="List active coding challenges",
+    responses=CodingChallengeSerializer(many=True),
+    tags=["Coding Challenges"],
+)
+class CodingChallengeListView(generics.ListAPIView):
+    serializer_class = CodingChallengeSerializer
+    permission_classes = [AllowAny]
+    queryset = CodingChallenge.objects.filter(is_active=True).prefetch_related("test_cases")
+
+
+@extend_schema(
+    summary="Get challenge details and sample cases",
+    responses=CodingChallengeSerializer,
+    tags=["Coding Challenges"],
+)
+class CodingChallengeDetailView(generics.RetrieveAPIView):
+    serializer_class = CodingChallengeSerializer
+    permission_classes = [AllowAny]
+    lookup_field = "slug"
+    queryset = CodingChallenge.objects.filter(is_active=True).prefetch_related("test_cases")
+
+
+@extend_schema(
+    summary="Start a timed coding attempt",
+    request=None,
+    responses=CodingAttemptStartSerializer,
+    tags=["Coding Challenges"],
+)
+class CodingChallengeStartView(views.APIView):
+    permission_classes = [IsAuthenticated]
+    throttle_classes = [ScopedRateThrottle]
+    throttle_scope = "coding_challenge"
+
+    @extend_schema(request=None, responses={201: CodingAttemptStartSerializer})
+    def post(self, request, pk):
+        challenge = get_object_or_404(CodingChallenge, pk=pk, is_active=True)
+        if not getattr(settings, "JUDGE0_API_URL", "").strip():
+            return Response(
+                {"error": "Hosted code judging is not configured. Set JUDGE0_API_URL and credentials."},
+                status=status.HTTP_503_SERVICE_UNAVAILABLE,
+            )
+        attempt = CodingAttempt.objects.create(user=request.user, challenge=challenge)
+        return Response(
+            CodingAttemptStartSerializer(attempt).data,
+            status=status.HTTP_201_CREATED,
+        )
+
+
+@extend_schema(
+    summary="Submit code to hosted Judge0 test runner",
+    request=CodeSubmissionSerializer,
+    responses=CodingAttemptResultSerializer,
+    tags=["Coding Challenges"],
+)
+class CodingChallengeSubmitView(views.APIView):
+    permission_classes = [IsAuthenticated]
+    throttle_classes = [ScopedRateThrottle]
+    throttle_scope = "coding_challenge"
+
+    @extend_schema(
+        request=CodeSubmissionSerializer,
+        responses=CodingAttemptResultSerializer,
+    )
+    def post(self, request, pk):
+        attempt = get_object_or_404(
+            CodingAttempt.objects.select_related("challenge"),
+            pk=pk,
+            user=request.user,
+        )
+        if attempt.status != CodingAttempt.Status.IN_PROGRESS:
+            return Response(
+                {"error": "This attempt has already been submitted."},
+                status=status.HTTP_409_CONFLICT,
+            )
+        expires_at = attempt.started_at + timedelta(
+            minutes=attempt.challenge.duration_minutes
+        )
+        if timezone.now() >= expires_at:
+            return Response(
+                {"error": "The challenge timer has expired. Start a new attempt."},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+
+        serializer = CodeSubmissionSerializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+        test_cases = list(attempt.challenge.test_cases.all())
+        if not test_cases or len(test_cases) > 10:
+            return Response(
+                {"error": "This challenge does not have a valid number of configured test cases."},
+                status=status.HTTP_503_SERVICE_UNAVAILABLE,
+            )
+
+        code = serializer.validated_data["source_code"]
+        results = []
+        total_execution_time = 0.0
+        try:
+            for case in test_cases:
+                result = run_test_case(
+                    source_code=code,
+                    language_id=attempt.challenge.language_id,
+                    stdin=case.stdin,
+                    expected_output=case.expected_output,
+                )
+                passed = result["status"] == "accepted"
+                total_execution_time += float(result.get("time") or 0)
+                case_result = {
+                    "order": case.order,
+                    "is_sample": case.is_sample,
+                    "passed": passed,
+                    "status": result["status"],
+                }
+                if case.is_sample and result.get("diagnostic"):
+                    case_result["diagnostic"] = result["diagnostic"]
+                results.append(case_result)
+        except JudgeConfigurationError as exc:
+            return Response({"error": str(exc)}, status=status.HTTP_503_SERVICE_UNAVAILABLE)
+        except JudgeServiceError as exc:
+            return Response({"error": str(exc)}, status=status.HTTP_502_BAD_GATEWAY)
+
+        passed_count = sum(result["passed"] for result in results)
+        if passed_count == len(results):
+            final_status = CodingAttempt.Status.ACCEPTED
+        elif any(result["status"] == "time_limit" for result in results):
+            final_status = CodingAttempt.Status.TIME_LIMIT
+        elif any(result["status"] == "compile_error" for result in results):
+            final_status = CodingAttempt.Status.COMPILE_ERROR
+        elif any(result["status"] == "runtime_error" for result in results):
+            final_status = CodingAttempt.Status.RUNTIME_ERROR
+        elif passed_count:
+            final_status = CodingAttempt.Status.PARTIAL
+        else:
+            final_status = CodingAttempt.Status.WRONG_ANSWER
+
+        attempt.source_code = code
+        attempt.status = final_status
+        attempt.submitted_at = timezone.now()
+        attempt.passed_test_cases = passed_count
+        attempt.total_test_cases = len(results)
+        attempt.execution_time_ms = round(total_execution_time * 1000)
+        attempt.save(
+            update_fields=[
+                "source_code",
+                "status",
+                "submitted_at",
+                "passed_test_cases",
+                "total_test_cases",
+                "execution_time_ms",
+            ]
+        )
+        return Response(
+            {
+                **CodingAttemptSerializer(attempt).data,
+                "test_results": results,
+            },
+            status=status.HTTP_200_OK,
+        )
 
 
 @extend_schema(

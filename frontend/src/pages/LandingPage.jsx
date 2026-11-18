@@ -1,4 +1,4 @@
-import React from "react";
+import React, { useEffect, useState } from "react";
 import { Link } from "react-router-dom";
 import { useAuth } from "../context/AuthContext";
 import {
@@ -12,10 +12,24 @@ import {
   ShieldCheck,
   Star,
   Compass,
+  Code2,
+  Clock3,
 } from "lucide-react";
+import api from "../api/client";
 
 export default function LandingPage() {
   const { isAuthenticated } = useAuth();
+  const [challenges, setChallenges] = useState([]);
+  const [challengeError, setChallengeError] = useState("");
+
+  useEffect(() => {
+    api.get("/challenges/")
+      .then((response) => setChallenges(response.data))
+      .catch((error) => {
+        console.error("Could not load challenge catalog:", error);
+        setChallengeError("Challenge catalog is currently unavailable. Please try again later.");
+      });
+  }, []);
 
   return (
     <div className="min-h-screen bg-slate-50/60 text-slate-900">
@@ -145,6 +159,66 @@ export default function LandingPage() {
               </div>
             </div>
           </div>
+        </div>
+      </section>
+
+      <section className="py-20 bg-gradient-to-br from-indigo-950 via-slate-900 to-violet-950 text-white">
+        <div className="max-w-6xl mx-auto px-4 sm:px-6 lg:px-8">
+          <div className="flex flex-wrap items-end justify-between gap-5">
+            <div>
+              <span className="inline-flex items-center gap-2 rounded-full border border-indigo-300/30 bg-white/10 px-3 py-1.5 text-xs font-bold uppercase tracking-wider text-indigo-100">
+                <Code2 className="h-4 w-4" />
+                Live coding challenges
+              </span>
+              <h2 className="mt-4 text-3xl sm:text-4xl font-black tracking-tight">
+                Practice with real test cases and a real judge.
+              </h2>
+              <p className="mt-3 max-w-2xl text-slate-300">
+                Timed Python problems run against sample and hidden cases through the configured Judge0 service.
+                Results are returned from code execution, not simulated.
+              </p>
+            </div>
+            <Link
+              to="/challenges"
+              className="inline-flex items-center gap-2 rounded-xl bg-white px-5 py-3 text-sm font-bold text-indigo-950 transition hover:bg-indigo-50"
+            >
+              Open Coding Arena <ArrowRight className="h-4 w-4" />
+            </Link>
+          </div>
+
+          {challengeError ? (
+            <p role="alert" className="mt-7 rounded-xl border border-rose-300/30 bg-rose-400/10 p-4 text-sm text-rose-100">
+              {challengeError}
+            </p>
+          ) : challenges.length === 0 ? (
+            <p className="mt-7 text-sm text-slate-300">Loading the current challenge catalog…</p>
+          ) : (
+            <div className="mt-8 grid gap-4 sm:grid-cols-2">
+              {challenges.slice(0, 3).map((challenge) => (
+                <Link
+                  key={challenge.id}
+                  to="/challenges"
+                  className="rounded-2xl border border-white/10 bg-white/5 p-5 transition hover:border-indigo-300/50 hover:bg-white/10"
+                >
+                  <div className="flex items-center justify-between gap-2">
+                    <span className="font-bold">{challenge.title}</span>
+                    <span className="rounded-full bg-indigo-300/15 px-2.5 py-1 text-[11px] font-bold capitalize text-indigo-100">
+                      {challenge.difficulty}
+                    </span>
+                  </div>
+                  <p className="mt-3 line-clamp-2 text-sm leading-relaxed text-slate-300">
+                    {challenge.description}
+                  </p>
+                  <span className="mt-4 inline-flex items-center gap-1.5 text-xs font-semibold text-slate-300">
+                    <Clock3 className="h-3.5 w-3.5" />
+                    {challenge.duration_minutes} minutes
+                    <span className="mx-1">·</span>
+                    {challenge.test_case_count} test cases
+                  </span>
+                </Link>
+              ))}
+            </div>
+          )}
         </div>
       </section>
     </div>

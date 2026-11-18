@@ -18,6 +18,7 @@ import {
   Sparkles,
   Download,
   FileCheck,
+  Github,
 } from "lucide-react";
 
 export default function PathDetailPage() {
@@ -27,6 +28,9 @@ export default function PathDetailPage() {
   const [updatingId, setUpdatingId] = useState(null);
   const [downloadingCert, setDownloadingCert] = useState(false);
   const [hoveredStars, setHoveredStars] = useState({});
+  const [githubUrls, setGithubUrls] = useState({});
+  const [reflections, setReflections] = useState({});
+  const [submittingProjectId, setSubmittingProjectId] = useState(null);
   const toast = useToast();
 
   const fetchPath = async () => {
@@ -84,6 +88,24 @@ export default function PathDetailPage() {
     } catch (err) {
       console.error("Failed to rate item:", err);
       toast.error("Unable to save rating.");
+    }
+  };
+
+  const handleProjectSubmit = async (item) => {
+    setSubmittingProjectId(item.id);
+    try {
+      await api.post(`/items/${item.id}/submission/`, {
+        github_url: githubUrls[item.id] || item.submission?.github_url || "",
+        reflection: reflections[item.id] ?? item.submission?.reflection ?? "",
+      });
+      toast.success("GitHub project submitted for teacher review.");
+      await fetchPath();
+    } catch (err) {
+      console.error("Failed to submit project:", err);
+      const detail = err.response?.data?.github_url?.[0] || err.response?.data?.error;
+      toast.error(detail || "Could not submit project. Check the repository URL and try again.");
+    } finally {
+      setSubmittingProjectId(null);
     }
   };
 
@@ -428,6 +450,83 @@ export default function PathDetailPage() {
                         )}
                       </div>
                     </div>
+
+                    {item.resource.resource_type === "project" && (
+                      <div className="mt-5 rounded-2xl border border-indigo-100 bg-indigo-50/60 p-4 sm:p-5">
+                        <div className="flex items-start gap-3">
+                          <Github className="mt-0.5 h-5 w-5 shrink-0 text-indigo-700" />
+                          <div className="min-w-0 flex-1">
+                            <h4 className="font-bold text-slate-900">Submit your work for teacher review</h4>
+                            <p className="mt-1 text-xs leading-relaxed text-slate-600">
+                              Share a GitHub repository. Your instructor can review the code and leave actionable feedback.
+                            </p>
+                            <label className="mt-4 block text-xs font-bold text-slate-700" htmlFor={`github-url-${item.id}`}>
+                              GitHub repository URL
+                            </label>
+                            <input
+                              id={`github-url-${item.id}`}
+                              type="url"
+                              value={githubUrls[item.id] ?? item.submission?.github_url ?? ""}
+                              onChange={(event) =>
+                                setGithubUrls((previous) => ({ ...previous, [item.id]: event.target.value }))
+                              }
+                              placeholder="https://github.com/username/project"
+                              className="mt-1.5 w-full rounded-xl border border-slate-300 bg-white px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500"
+                            />
+                            <label className="mt-3 block text-xs font-bold text-slate-700" htmlFor={`reflection-${item.id}`}>
+                              What did you build or learn? (optional)
+                            </label>
+                            <textarea
+                              id={`reflection-${item.id}`}
+                              rows={2}
+                              maxLength={2000}
+                              value={reflections[item.id] ?? item.submission?.reflection ?? ""}
+                              onChange={(event) =>
+                                setReflections((previous) => ({ ...previous, [item.id]: event.target.value }))
+                              }
+                              placeholder="Briefly describe your approach or a challenge you solved."
+                              className="mt-1.5 w-full resize-y rounded-xl border border-slate-300 bg-white px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500"
+                            />
+                            <div className="mt-3 flex flex-wrap items-center justify-between gap-3">
+                              {item.submission && (
+                                <span className={`rounded-full px-3 py-1 text-xs font-bold ${
+                                  item.submission.status === "approved"
+                                    ? "bg-emerald-100 text-emerald-800"
+                                    : item.submission.status === "revision"
+                                      ? "bg-amber-100 text-amber-800"
+                                      : "bg-slate-200 text-slate-700"
+                                }`}>
+                                  {item.submission.status === "approved"
+                                    ? "Teacher approved"
+                                    : item.submission.status === "revision"
+                                      ? "Revision requested"
+                                      : "Awaiting teacher review"}
+                                </span>
+                              )}
+                              <button
+                                type="button"
+                                onClick={() => handleProjectSubmit(item)}
+                                disabled={submittingProjectId === item.id || !(githubUrls[item.id] ?? item.submission?.github_url)}
+                                className="ml-auto inline-flex items-center gap-2 rounded-xl bg-indigo-600 px-4 py-2.5 text-xs font-bold text-white shadow-sm transition hover:bg-indigo-700 disabled:cursor-not-allowed disabled:opacity-50"
+                              >
+                                {submittingProjectId === item.id ? (
+                                  <Loader2 className="h-4 w-4 animate-spin" />
+                                ) : (
+                                  <Github className="h-4 w-4" />
+                                )}
+                                {item.submission ? "Resubmit project" : "Submit for review"}
+                              </button>
+                            </div>
+                            {item.submission?.teacher_feedback && (
+                              <div className="mt-4 rounded-xl border border-slate-200 bg-white p-3">
+                                <p className="text-xs font-bold text-slate-700">Teacher feedback</p>
+                                <p className="mt-1 whitespace-pre-wrap text-sm text-slate-600">{item.submission.teacher_feedback}</p>
+                              </div>
+                            )}
+                          </div>
+                        </div>
+                      </div>
+                    )}
                   </div>
                 </div>
               </div>

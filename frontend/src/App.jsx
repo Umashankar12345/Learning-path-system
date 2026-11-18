@@ -13,6 +13,7 @@ import SkillsPage from "./pages/SkillsPage";
 import DashboardPage from "./pages/DashboardPage";
 import PathDetailPage from "./pages/PathDetailPage";
 import LeaderboardPage from "./pages/LeaderboardPage";
+import CodingChallengesPage from "./pages/CodingChallengesPage";
 
 function App() {
   return (
@@ -28,6 +29,7 @@ function App() {
                 <Route path="/signup" element={<SignupPage />} />
                 <Route path="/skills" element={<SkillsPage />} />
                 <Route path="/leaderboard" element={<LeaderboardPage />} />
+                <Route path="/challenges" element={<CodingChallengesPage />} />
                 <Route
                   path="/dashboard"
                   element={

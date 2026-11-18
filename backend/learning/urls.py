@@ -10,6 +10,11 @@ from .views import (
     LearningPathDetailView,
     MarkItemCompleteView,
     RateItemView,
+    ProjectSubmissionView,
+    CodingChallengeListView,
+    CodingChallengeDetailView,
+    CodingChallengeStartView,
+    CodingChallengeSubmitView,
     CertificateDownloadView,
     LeaderboardView,
     DashboardStatsView,
@@ -36,6 +41,13 @@ urlpatterns = [
     # Item actions
     path("items/<int:pk>/complete/", MarkItemCompleteView.as_view(), name="item-complete"),
     path("items/<int:pk>/rate/", RateItemView.as_view(), name="item-rate"),
+    path("items/<int:pk>/submission/", ProjectSubmissionView.as_view(), name="project-submission"),
+
+    # Hosted coding challenges
+    path("challenges/", CodingChallengeListView.as_view(), name="coding-challenge-list"),
+    path("challenges/<slug:slug>/", CodingChallengeDetailView.as_view(), name="coding-challenge-detail"),
+    path("challenges/<int:pk>/start/", CodingChallengeStartView.as_view(), name="coding-challenge-start"),
+    path("challenge-attempts/<int:pk>/submit/", CodingChallengeSubmitView.as_view(), name="coding-challenge-submit"),
 
     # Dashboard analytics
     path("dashboard/stats/", DashboardStatsView.as_view(), name="dashboard-stats"),

@@ -5,8 +5,19 @@ from rest_framework.test import APIClient
 from rest_framework import status
 from datetime import timedelta
 from django.utils import timezone
+from django.test import override_settings
+from unittest.mock import patch
 
-from .models import Skill, Resource, LearningPath, PathItem
+from .models import (
+    CodingAttempt,
+    CodingChallenge,
+    Skill,
+    Resource,
+    LearningPath,
+    PathItem,
+    ProjectSubmission,
+)
+from .judge import run_test_case
 
 
 class LearningPathAPITestCase(TestCase):
@@ -69,17 +80,47 @@ class LearningPathAPITestCase(TestCase):
         self.assertIn("access", response.data["token"])
         self.assertTrue(User.objects.filter(username="new_learner").exists())
 
-    def test_google_oauth_endpoint(self):
-        """Test Google login endpoint registers or signs in user."""
-        url = reverse("google-auth")
-        data = {
+    @patch.dict("os.environ", {"GOOGLE_CLIENT_ID": "test-google-client-id"})
+    @patch("google.oauth2.id_token.verify_oauth2_token")
+    def test_google_oauth_endpoint(self, verify_token):
+        """Test Google login endpoint verifies credentials and registers a user."""
+        verify_token.return_value = {
             "email": "google_learner@example.com",
             "name": "Google User",
+            "email_verified": True,
         }
-        response = self.client.post(url, data, format="json")
-        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        url = reverse("google-auth")
+        response = self.client.post(url, {"credential": "verified-google-jwt"}, format="json")
+        self.assertEqual(response.status_code, status.HTTP_200_OK, response.data)
         self.assertIn("token", response.data)
         self.assertTrue(User.objects.filter(email="google_learner@example.com").exists())
+
+    @patch.dict("os.environ", {"GOOGLE_CLIENT_ID": "test-google-client-id"})
+    @patch("google.oauth2.id_token.verify_oauth2_token")
+    def test_google_oauth_rejects_unverified_payload(self, verify_token):
+        verify_token.return_value = {
+            "email": "fake@example.com",
+            "name": "Fake Google User",
+            "email_verified": False,
+        }
+        url = reverse("google-auth")
+        response = self.client.post(
+            url,
+            {"credential": "unverified-google-jwt"},
+            format="json",
+        )
+        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+        self.assertFalse(User.objects.filter(email="fake@example.com").exists())
+
+    @patch.dict("os.environ", {"GOOGLE_CLIENT_ID": ""})
+    def test_google_oauth_requires_client_id(self):
+        response = self.client.post(
+            reverse("google-auth"),
+            {"credential": "google-jwt"},
+            format="json",
+        )
+        self.assertEqual(response.status_code, status.HTTP_503_SERVICE_UNAVAILABLE)
+        self.assertIn("GOOGLE_CLIENT_ID", response.data["error"])
 
     def test_create_learning_path_ordered_by_difficulty(self):
         """Test creating a learning path populates items ordered by difficulty."""
@@ -122,6 +163,213 @@ class LearningPathAPITestCase(TestCase):
 
         item1.refresh_from_db()
         self.assertEqual(item1.rating, 5)
+
+    def test_project_submission_is_teacher_reviewable_and_owner_scoped(self):
+        project = Resource.objects.create(
+            title="Build a learning tracker",
+            url="https://example.com/tracker",
+            resource_type="project",
+            skill=self.skill,
+            difficulty=2,
+        )
+        path = LearningPath.objects.create(user=self.user1, skill=self.skill)
+        item = PathItem.objects.create(path=path, resource=project, order=1)
+        url = reverse("project-submission", kwargs={"pk": item.id})
+        self.client.force_authenticate(user=self.user1)
+
+        response = self.client.post(
+            url,
+            {
+                "github_url": "https://github.com/learner/learning-tracker",
+                "reflection": "Built the data model and progress view.",
+            },
+            format="json",
+        )
+        self.assertEqual(response.status_code, status.HTTP_201_CREATED)
+        self.assertEqual(response.data["status"], ProjectSubmission.ReviewStatus.PENDING)
+
+        submission = ProjectSubmission.objects.get(item=item)
+        submission.status = ProjectSubmission.ReviewStatus.APPROVED
+        submission.teacher_feedback = "Good data model and clear README."
+        submission.reviewed_by = self.user2
+        submission.save()
+
+        detail = self.client.get(reverse("path-detail", kwargs={"pk": path.id}))
+        self.assertEqual(detail.status_code, status.HTTP_200_OK)
+        self.assertEqual(
+            detail.data["items"][0]["submission"]["teacher_feedback"],
+            "Good data model and clear README.",
+        )
+
+        response = self.client.post(
+            url,
+            {
+                "github_url": "https://github.com/learner/learning-tracker-v2",
+                "reflection": "Addressed teacher feedback.",
+            },
+            format="json",
+        )
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        submission.refresh_from_db()
+        self.assertEqual(submission.status, ProjectSubmission.ReviewStatus.PENDING)
+        self.assertEqual(submission.teacher_feedback, "")
+        self.assertIsNone(submission.reviewed_by)
+
+        self.client.force_authenticate(user=self.user2)
+        response = self.client.post(
+            url,
+            {"github_url": "https://github.com/learner/other-project"},
+            format="json",
+        )
+        self.assertEqual(response.status_code, status.HTTP_404_NOT_FOUND)
+
+    def test_project_submission_rejects_non_github_urls_and_non_project_items(self):
+        path = LearningPath.objects.create(user=self.user1, skill=self.skill)
+        item = PathItem.objects.create(path=path, resource=self.resource1, order=1)
+        self.client.force_authenticate(user=self.user1)
+        url = reverse("project-submission", kwargs={"pk": item.id})
+
+        response = self.client.post(
+            url,
+            {"github_url": "https://github.com/learner/my-project"},
+            format="json",
+        )
+        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+        self.assertIn("error", response.data)
+
+        project = Resource.objects.create(
+            title="Build a portfolio",
+            url="https://example.com/portfolio",
+            resource_type="project",
+            skill=self.skill,
+            difficulty=2,
+        )
+        project_item = PathItem.objects.create(path=path, resource=project, order=2)
+        response = self.client.post(
+            reverse("project-submission", kwargs={"pk": project_item.id}),
+            {"github_url": "https://github.com/not-a-repository"},
+            format="json",
+        )
+        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+        self.assertIn("github_url", response.data)
+
+    def test_coding_challenge_catalog_has_real_sample_and_hidden_cases(self):
+        response = self.client.get(reverse("coding-challenge-list"))
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        challenge = next(
+            item for item in response.data if item["slug"] == "sum-two-integers"
+        )
+        self.assertEqual(challenge["test_case_count"], 3)
+        self.assertEqual(len(challenge["sample_test_cases"]), 2)
+
+    @override_settings(JUDGE0_API_URL="https://judge0.example")
+    def test_coding_challenge_starts_timed_attempt_and_judges_all_cases(self):
+        self.client.force_authenticate(user=self.user1)
+        challenge = CodingChallenge.objects.get(slug="sum-two-integers")
+        start = self.client.post(
+            reverse("coding-challenge-start", kwargs={"pk": challenge.id}),
+            format="json",
+        )
+        self.assertEqual(start.status_code, status.HTTP_201_CREATED)
+        self.assertEqual(start.data["status"], CodingAttempt.Status.IN_PROGRESS)
+        self.assertIn("solve()", start.data["starter_code"])
+        attempt_id = start.data["id"]
+
+        with patch(
+            "learning.views.run_test_case",
+            side_effect=[
+                {"status": "accepted", "time": "0.01"},
+                {"status": "accepted", "time": "0.02"},
+                {"status": "wrong_answer", "time": "0.03"},
+            ],
+        ) as judge:
+            response = self.client.post(
+                reverse("coding-challenge-submit", kwargs={"pk": attempt_id}),
+                {"source_code": "print(sum(map(int, input().split())))"},
+                format="json",
+            )
+
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertEqual(response.data["status"], CodingAttempt.Status.PARTIAL)
+        self.assertEqual(response.data["passed_test_cases"], 2)
+        self.assertEqual(response.data["total_test_cases"], 3)
+        self.assertEqual(len(response.data["test_results"]), 3)
+        self.assertNotIn("expected_output", response.data["test_results"][2])
+        self.assertEqual(judge.call_count, 3)
+
+        attempt = CodingAttempt.objects.get(pk=attempt_id)
+        self.assertEqual(attempt.source_code, "print(sum(map(int, input().split())))")
+        self.assertIsNotNone(attempt.submitted_at)
+
+    @override_settings(JUDGE0_API_URL="")
+    def test_coding_challenge_refuses_to_start_without_live_judge_config(self):
+        self.client.force_authenticate(user=self.user1)
+        challenge = CodingChallenge.objects.get(slug="sum-two-integers")
+        response = self.client.post(
+            reverse("coding-challenge-start", kwargs={"pk": challenge.id}),
+            format="json",
+        )
+        self.assertEqual(response.status_code, status.HTTP_503_SERVICE_UNAVAILABLE)
+        self.assertEqual(CodingAttempt.objects.count(), 0)
+
+    @override_settings(JUDGE0_API_URL="https://judge0.example")
+    def test_coding_challenge_attempt_is_owner_scoped_and_timer_enforced(self):
+        challenge = CodingChallenge.objects.get(slug="sum-two-integers")
+        attempt = CodingAttempt.objects.create(user=self.user1, challenge=challenge)
+        self.client.force_authenticate(user=self.user2)
+        response = self.client.post(
+            reverse("coding-challenge-submit", kwargs={"pk": attempt.id}),
+            {"source_code": "print(1)"},
+            format="json",
+        )
+        self.assertEqual(response.status_code, status.HTTP_404_NOT_FOUND)
+
+        self.client.force_authenticate(user=self.user1)
+        attempt.started_at = timezone.now() - timedelta(minutes=challenge.duration_minutes + 1)
+        attempt.save(update_fields=["started_at"])
+        with patch("learning.views.run_test_case") as judge:
+            response = self.client.post(
+                reverse("coding-challenge-submit", kwargs={"pk": attempt.id}),
+                {"source_code": "print(1)"},
+                format="json",
+            )
+        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+        judge.assert_not_called()
+
+    @override_settings(
+        JUDGE0_API_URL="https://judge0.example/api",
+        JUDGE0_API_KEY="test-api-key",
+        JUDGE0_API_HOST="judge0.example",
+    )
+    @patch("learning.judge.time.sleep")
+    @patch("learning.judge.requests.get")
+    @patch("learning.judge.requests.post")
+    def test_judge0_client_sends_limits_and_reads_real_submission_result(
+        self, post, get, _sleep
+    ):
+        post.return_value.json.return_value = {"token": "submission-token"}
+        get.return_value.json.return_value = {
+            "status": {"id": 3, "description": "Accepted"},
+            "stdout": "5\n",
+            "time": "0.01",
+            "memory": 1024,
+        }
+
+        result = run_test_case(
+            source_code="print(sum(map(int, input().split())))",
+            language_id=71,
+            stdin="2 3\n",
+            expected_output="5\n",
+        )
+
+        self.assertEqual(result["status"], "accepted")
+        self.assertEqual(result["stdout"], "5\n")
+        payload = post.call_args.kwargs["json"]
+        self.assertEqual(payload["cpu_time_limit"], 2)
+        self.assertEqual(payload["wall_time_limit"], 5)
+        self.assertEqual(payload["memory_limit"], 128000)
+        self.assertEqual(post.call_args.kwargs["headers"]["X-RapidAPI-Key"], "test-api-key")
+        self.assertIn("/submissions/submission-token", get.call_args.args[0])
 
     def test_pdf_certificate_download(self):
         """Test generating and downloading PDF Certificate of Completion."""

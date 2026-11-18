@@ -101,3 +101,123 @@ class PathItem(models.Model):
         self.completed = False
         self.completed_at = None
         self.save(update_fields=["completed", "completed_at"])
+
+
+class ProjectSubmission(models.Model):
+    class ReviewStatus(models.TextChoices):
+        PENDING = "pending", "Awaiting review"
+        APPROVED = "approved", "Approved"
+        REVISION = "revision", "Revision requested"
+
+    item = models.OneToOneField(
+        PathItem,
+        on_delete=models.CASCADE,
+        related_name="submission",
+    )
+    github_url = models.URLField(max_length=500)
+    reflection = models.TextField(blank=True, max_length=2000)
+    status = models.CharField(
+        max_length=10,
+        choices=ReviewStatus.choices,
+        default=ReviewStatus.PENDING,
+    )
+    teacher_feedback = models.TextField(blank=True)
+    submitted_at = models.DateTimeField(auto_now_add=True)
+    reviewed_at = models.DateTimeField(null=True, blank=True)
+    reviewed_by = models.ForeignKey(
+        User,
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name="reviewed_project_submissions",
+    )
+
+    class Meta:
+        ordering = ["-submitted_at"]
+
+    def __str__(self):
+        return f"Submission for {self.item.resource.title} by {self.item.path.user.username}"
+
+
+class CodingChallenge(models.Model):
+    class Difficulty(models.TextChoices):
+        BEGINNER = "beginner", "Beginner"
+        INTERMEDIATE = "intermediate", "Intermediate"
+        ADVANCED = "advanced", "Advanced"
+
+    slug = models.SlugField(unique=True)
+    title = models.CharField(max_length=160)
+    description = models.TextField()
+    difficulty = models.CharField(
+        max_length=12,
+        choices=Difficulty.choices,
+        default=Difficulty.BEGINNER,
+    )
+    starter_code = models.TextField(blank=True)
+    language_id = models.PositiveSmallIntegerField(default=71)
+    duration_minutes = models.PositiveSmallIntegerField(default=20)
+    order = models.PositiveSmallIntegerField(default=1)
+    is_active = models.BooleanField(default=True)
+
+    class Meta:
+        ordering = ["order", "id"]
+
+    def __str__(self):
+        return self.title
+
+
+class CodingTestCase(models.Model):
+    challenge = models.ForeignKey(
+        CodingChallenge,
+        on_delete=models.CASCADE,
+        related_name="test_cases",
+    )
+    stdin = models.TextField(blank=True)
+    expected_output = models.TextField()
+    is_sample = models.BooleanField(default=False)
+    order = models.PositiveSmallIntegerField(default=1)
+
+    class Meta:
+        ordering = ["order", "id"]
+
+    def __str__(self):
+        return f"{self.challenge.title} test {self.order}"
+
+
+class CodingAttempt(models.Model):
+    class Status(models.TextChoices):
+        IN_PROGRESS = "in_progress", "In progress"
+        ACCEPTED = "accepted", "Accepted"
+        PARTIAL = "partial", "Partially correct"
+        WRONG_ANSWER = "wrong_answer", "Wrong answer"
+        TIME_LIMIT = "time_limit", "Time limit exceeded"
+        COMPILE_ERROR = "compile_error", "Compilation error"
+        RUNTIME_ERROR = "runtime_error", "Runtime error"
+
+    user = models.ForeignKey(
+        User,
+        on_delete=models.CASCADE,
+        related_name="coding_attempts",
+    )
+    challenge = models.ForeignKey(
+        CodingChallenge,
+        on_delete=models.CASCADE,
+        related_name="attempts",
+    )
+    status = models.CharField(
+        max_length=16,
+        choices=Status.choices,
+        default=Status.IN_PROGRESS,
+    )
+    source_code = models.TextField(blank=True)
+    started_at = models.DateTimeField(auto_now_add=True)
+    submitted_at = models.DateTimeField(null=True, blank=True)
+    passed_test_cases = models.PositiveSmallIntegerField(default=0)
+    total_test_cases = models.PositiveSmallIntegerField(default=0)
+    execution_time_ms = models.PositiveIntegerField(null=True, blank=True)
+
+    class Meta:
+        ordering = ["-started_at"]
+
+    def __str__(self):
+        return f"{self.user.username}: {self.challenge.title} ({self.status})"

@@ -1,7 +1,7 @@
 import React from "react";
 import { Link, useNavigate } from "react-router-dom";
 import { useAuth } from "../context/AuthContext";
-import { Compass, BookOpen, User, LogOut, Trophy, FileCode, CheckCircle2 } from "lucide-react";
+import { Compass, BookOpen, User, LogOut, Trophy, FileCode, Github, Code2 } from "lucide-react";
 
 export default function Navbar() {
   const { user, isAuthenticated, logout } = useAuth();
@@ -35,6 +35,10 @@ export default function Navbar() {
             <Trophy className="w-4 h-4 text-amber-500" />
             Leaderboard
           </Link>
+          <Link to="/challenges" className="text-sm font-bold text-slate-600 hover:text-indigo-600 transition-colors flex items-center gap-1.5">
+            <Code2 className="w-4 h-4 text-indigo-500" />
+            Coding Arena
+          </Link>
           {isAuthenticated && (
             <Link to="/dashboard" className="text-sm font-bold text-slate-600 hover:text-indigo-600 transition-colors">
               Dashboard
@@ -49,6 +53,15 @@ export default function Navbar() {
           >
             <FileCode className="w-3.5 h-3.5" />
             Swagger Docs
+          </a>
+          <a
+            href="https://github.com/Umashankar12345/Learning-path-system"
+            target="_blank"
+            rel="noopener noreferrer"
+            className="text-sm font-bold text-slate-600 hover:text-indigo-600 transition-colors inline-flex items-center gap-1.5"
+          >
+            <Github className="h-4 w-4" />
+            Source
           </a>
         </nav>
 

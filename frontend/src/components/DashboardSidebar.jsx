@@ -16,7 +16,7 @@ import {
 } from "lucide-react";
 
 export default function DashboardSidebar({ activePaths = [], streak = 0, hours = 0 }) {
-  const { user, logout } = useAuth();
+  const { user } = useAuth();
   const location = useLocation();
 
   const navItems = [

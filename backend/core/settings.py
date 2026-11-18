@@ -10,7 +10,7 @@ BASE_DIR = Path(__file__).resolve().parent.parent
 load_dotenv(BASE_DIR / ".env")
 load_dotenv(BASE_DIR.parent / ".env")
 
-SECRET_KEY = os.getenv("DJANGO_SECRET_KEY", "django-insecure-learning-path-dashboard-dev-secret-key-12345")
+SECRET_KEY = os.getenv("DJANGO_SECRET_KEY", "django-insecure-learning-path-dashboard-development-secret-key-2026")
 
 DEBUG = os.getenv("DJANGO_DEBUG", "True").lower() in ("true", "1", "yes")
 
@@ -125,7 +125,14 @@ REST_FRAMEWORK = {
         "rest_framework.permissions.IsAuthenticated",
     ),
     "DEFAULT_SCHEMA_CLASS": "drf_spectacular.openapi.AutoSchema",
+    "DEFAULT_THROTTLE_RATES": {
+        "coding_challenge": "20/hour",
+    },
 }
+
+JUDGE0_API_URL = os.getenv("JUDGE0_API_URL", "https://ce.judge0.com")
+JUDGE0_API_KEY = os.getenv("JUDGE0_API_KEY", "")
+JUDGE0_API_HOST = os.getenv("JUDGE0_API_HOST", "")
 
 # OpenAPI / Swagger UI Settings (drf-spectacular)
 SPECTACULAR_SETTINGS = {

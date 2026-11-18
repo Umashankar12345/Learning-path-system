@@ -1,6 +1,6 @@
 import React from "react";
 import { Link } from "react-router-dom";
-import { Compass, Github, Database, Layers, ShieldCheck, Heart } from "lucide-react";
+import { Compass, Github, Database, Layers, ShieldCheck, Heart, Code2 } from "lucide-react";
 
 export default function Footer() {
   return (
@@ -30,6 +30,10 @@ export default function Footer() {
             </Link>
             <Link to="/dashboard" className="hover:text-indigo-600 transition-colors">
               Dashboard
+            </Link>
+            <Link to="/challenges" className="inline-flex items-center gap-1.5 hover:text-indigo-600 transition-colors">
+              <Code2 className="h-4 w-4" />
+              Coding Arena
             </Link>
             <a
               href="http://127.0.0.1:8000/admin/"

@@ -47,7 +47,6 @@ export default function LeaderboardPage() {
   }
 
   const topThree = leaders.slice(0, 3);
-  const remaining = leaders.slice(3);
 
   return (
     <div className="min-h-screen bg-slate-50/60 py-14 px-4 sm:px-6 lg:px-8">
