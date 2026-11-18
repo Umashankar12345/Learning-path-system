@@ -2,15 +2,43 @@ from django.contrib import admin
 from django.contrib.auth.models import Group, Permission
 from django.contrib.contenttypes.models import ContentType
 from .models import (
+    AssessmentAttempt,
     CodingAttempt,
     CodingChallenge,
     CodingTestCase,
+    CodeSubmission,
+    PlacementQuestion,
     Skill,
     Resource,
     LearningPath,
     PathItem,
     ProjectSubmission,
 )
+
+
+@admin.register(PlacementQuestion)
+class PlacementQuestionAdmin(admin.ModelAdmin):
+    list_display = ("skill", "difficulty", "question_text", "is_active")
+    list_filter = ("skill", "difficulty", "is_active")
+    search_fields = ("skill__name", "question_text")
+    fields = ("skill", "difficulty", "question_text", "options", "correct_option", "is_active")
+
+
+@admin.register(AssessmentAttempt)
+class AssessmentAttemptAdmin(admin.ModelAdmin):
+    list_display = ("user", "skill", "score", "recommended_level", "created_at")
+    list_filter = ("skill", "recommended_level", "created_at")
+    search_fields = ("user__username", "skill__name")
+    readonly_fields = (
+        "user",
+        "skill",
+        "score",
+        "correct_answers",
+        "total_questions",
+        "recommended_level",
+        "skill_gap_breakdown",
+        "created_at",
+    )
 
 
 class PathItemInline(admin.TabularInline):
@@ -61,10 +89,58 @@ class CodingTestCaseInline(admin.TabularInline):
 
 @admin.register(CodingChallenge)
 class CodingChallengeAdmin(admin.ModelAdmin):
-    list_display = ("title", "difficulty", "duration_minutes", "is_active", "order")
-    list_filter = ("difficulty", "is_active")
+    list_display = (
+        "title",
+        "difficulty",
+        "duration_minutes",
+        "is_daily_challenge",
+        "is_active",
+        "order",
+    )
+    list_filter = ("difficulty", "is_daily_challenge", "is_active")
     search_fields = ("title", "description", "slug")
+    fields = (
+        "slug",
+        "title",
+        "description",
+        "difficulty",
+        "topic_tags",
+        "starter_code",
+        "reference_solution",
+        "language_id",
+        "duration_minutes",
+        "order",
+        "is_active",
+        "is_daily_challenge",
+        "challenge_date",
+    )
     inlines = [CodingTestCaseInline]
+
+
+@admin.register(CodeSubmission)
+class CodeSubmissionAdmin(admin.ModelAdmin):
+    list_display = (
+        "user",
+        "challenge",
+        "status",
+        "passed_count",
+        "total_count",
+        "runtime_ms",
+        "created_at",
+    )
+    list_filter = ("status", "challenge", "created_at")
+    search_fields = ("user__username", "challenge__title")
+    readonly_fields = (
+        "user",
+        "challenge",
+        "language",
+        "source_code",
+        "passed_count",
+        "total_count",
+        "status",
+        "runtime_ms",
+        "created_at",
+    )
 
 
 @admin.register(CodingAttempt)
@@ -140,6 +216,7 @@ def setup_instructor_group():
     group, _ = Group.objects.get_or_create(name="Instructor")
     skill_ct = ContentType.objects.get_for_model(Skill)
     resource_ct = ContentType.objects.get_for_model(Resource)
+    placement_ct = ContentType.objects.get_for_model(PlacementQuestion)
     submission_ct = ContentType.objects.get_for_model(ProjectSubmission)
     challenge_ct = ContentType.objects.get_for_model(CodingChallenge)
     test_case_ct = ContentType.objects.get_for_model(CodingTestCase)
@@ -148,6 +225,7 @@ def setup_instructor_group():
         content_type__in=[
             skill_ct,
             resource_ct,
+            placement_ct,
             submission_ct,
             challenge_ct,
             test_case_ct,
@@ -155,6 +233,7 @@ def setup_instructor_group():
         codename__in=[
             "add_skill", "change_skill", "view_skill",
             "add_resource", "change_resource", "view_resource",
+            "add_placementquestion", "change_placementquestion", "view_placementquestion",
             "view_projectsubmission", "change_projectsubmission",
             "add_codingchallenge", "change_codingchallenge", "view_codingchallenge",
             "add_codingtestcase", "change_codingtestcase", "view_codingtestcase",

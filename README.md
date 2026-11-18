@@ -189,6 +189,7 @@ The current differentiators are difficulty-aware sequencing, a teacher feedback 
 ### 1. REST API with Interactive Swagger Docs
 - Built with **`drf-spectacular`** conforming to OpenAPI 3.0.
 - Interactive Swagger UI: [http://127.0.0.1:8000/api/docs/](http://127.0.0.1:8000/api/docs/)
+- Swagger uses the project's dark-slate and indigo theme via `backend/templates/learning/swagger_ui.css`.
 - Redoc API Documentation: [http://127.0.0.1:8000/api/redoc/](http://127.0.0.1:8000/api/redoc/)
 - Raw OpenAPI JSON/YAML Schema: [http://127.0.0.1:8000/api/schema/](http://127.0.0.1:8000/api/schema/)
 
@@ -225,6 +226,7 @@ docker compose up --build
 
 ### 7. Teacher-Reviewed GitHub Project Work
 - Learners attach their GitHub repository and a short reflection to hands-on project milestones.
+- Project forms can browse up to 100 public repositories by GitHub username through `GET /api/github/users/<username>/repositories/`; no GitHub credentials are requested and private repositories are not accessed.
 - Teachers review, approve or request revisions, and leave feedback through Django Admin.
 - Feedback is returned to the learner's roadmap, creating a practical build → review → improve loop.
 - The project source is linked in the site navigation and footer: [GitHub repository](https://github.com/Umashankar12345/Learning-path-system).
@@ -233,8 +235,23 @@ docker compose up --build
 - Database-backed Python challenges and sample/hidden test cases are installed by migrations.
 - Server-created attempts enforce each challenge's deadline and are scoped to the signed-in learner.
 - Submissions are actually sent to the configured Judge0-compatible API with CPU, wall-time and memory limits; results are saved and returned per test case.
+- Problems can be filtered by difficulty and topic; authenticated submission history is stored, and a reference solution unlocks after the learner's first submission.
+- The dashboard highlights a rotating daily problem and coding streak. Skills can optionally link a roadmap module to a problem that must be passed before marking that module complete.
 - If the hosted judge is not configured or cannot return a result, the UI shows an explicit error and does not award a pass.
 - Configure `JUDGE0_API_URL` and any required `JUDGE0_API_KEY` / `JUDGE0_API_HOST` values in `.env` before starting an attempt. Local development defaults to Judge0 CE.
+
+### 9. Placement Assessment and Skill Radar
+- Each skill can be seeded with ten multiple-choice placement questions across three difficulty levels. The assessment uses existing `Skill` IDs as track IDs; no duplicate Track model is introduced.
+- `GET /api/tracks/<skill-id>/placement-quiz/` returns questions without their answer keys. Authenticated `POST /api/tracks/<skill-id>/placement-submit/` grades the attempt, recommends a starting level, creates or reuses the learner's path, and completes lower-level modules.
+- The placement score and per-level skill-gap breakdown are recorded in the database. Level recommendations are deterministic and based on accuracy at each difficulty; no external AI inference is claimed.
+- `GET /api/analytics/skill-radar/` returns 0–100 scores by enrolled skill, combining module completion (50%), relative study hours (25%), and the latest placement score (25%). The dashboard renders the values in a responsive Recharts radar chart.
+- The dashboard's **Enroll New Goal** action and skill cards open the placement quiz before navigating to the personalized roadmap.
+
+### 10. Expanded Skill Catalog
+- The catalog includes ten additional tracks: Python Programming, Data Structures & Algorithms, JavaScript Essentials, Frontend with React, HTML & CSS, SQL & Databases, Git & GitHub, Docker & Deployment, Generative AI & LLMs, and Web Security Basics.
+- The new tracks add 62 difficulty-ranked modules and ten placement questions per track, using vetted documentation and learning resources.
+- The Skills page builds category filter pills from the API data, so categories stay in sync as the catalog changes.
+- Run `python seed_data.py` from `backend/` to seed or update the catalog without duplicating matching skills, resources, or placement questions.
 
 ---
 

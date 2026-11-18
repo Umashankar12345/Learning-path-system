@@ -1,0 +1,8 @@
+{% extends "drf_spectacular/swagger_ui.html" %}
+
+{% block head %}
+  {{ block.super }}
+  <style>
+    {% include "learning/swagger_ui.css" %}
+  </style>
+{% endblock head %}

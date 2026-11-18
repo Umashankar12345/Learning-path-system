@@ -1,11 +1,13 @@
-import React, { useState, useEffect } from "react";
-import { Link } from "react-router-dom";
+import React, { lazy, Suspense, useCallback, useState, useEffect } from "react";
+import { Link, useNavigate } from "react-router-dom";
 import api from "../api/client";
 import { useAuth } from "../context/AuthContext";
 import { useToast } from "../context/ToastContext";
 import DashboardSidebar from "../components/DashboardSidebar";
+import PlacementQuizModal from "../components/PlacementQuizModal";
 import {
   BookOpen,
+  CalendarDays,
   CheckCircle2,
   Clock,
   Flame,
@@ -16,17 +18,24 @@ import {
   Loader2,
   TrendingUp,
   Award,
-  Layers,
   Compass,
 } from "lucide-react";
+
+const SkillRadarChart = lazy(() => import("../components/SkillRadarChart"));
 
 export default function DashboardPage() {
   const [stats, setStats] = useState(null);
   const [loading, setLoading] = useState(true);
+  const [skillRadar, setSkillRadar] = useState([]);
+  const [skillRadarError, setSkillRadarError] = useState("");
+  const [dailyChallenge, setDailyChallenge] = useState(null);
+  const [dailyChallengeError, setDailyChallengeError] = useState("");
+  const [placementOpen, setPlacementOpen] = useState(false);
   const { user } = useAuth();
   const toast = useToast();
+  const navigate = useNavigate();
 
-  const fetchDashboardData = async () => {
+  const fetchDashboardData = useCallback(async () => {
     try {
       const res = await api.get("/dashboard/stats/");
       setStats(res.data);
@@ -36,10 +45,39 @@ export default function DashboardPage() {
     } finally {
       setLoading(false);
     }
-  };
+  }, [toast]);
 
   useEffect(() => {
     fetchDashboardData();
+  }, [fetchDashboardData]);
+
+  useEffect(() => {
+    let active = true;
+    api.get("/analytics/skill-radar/")
+      .then((response) => {
+        if (active) {
+          setSkillRadar(response.data);
+          setSkillRadarError("");
+        }
+      })
+      .catch((error) => {
+        console.error("Could not load skill radar analytics:", error);
+        if (active) setSkillRadarError("Skill radar analytics are unavailable right now.");
+      });
+    api.get("/arena/daily/")
+      .then((response) => {
+        if (active) {
+          setDailyChallenge(response.data);
+          setDailyChallengeError("");
+        }
+      })
+      .catch((error) => {
+        console.error("Could not load the daily coding challenge:", error);
+        if (active) setDailyChallengeError("Today's coding challenge could not be loaded.");
+      });
+    return () => {
+      active = false;
+    };
   }, []);
 
   if (loading) {
@@ -68,7 +106,7 @@ export default function DashboardPage() {
   const maxWeeklyHours = Math.max(...weekly_activity.map((d) => d.hours), 1);
 
   return (
-    <div className="min-h-screen">
+    <div className="dashboard-theme min-h-screen">
       {/* 
         Professional Grid Shell:
         15rem fixed sidebar + minmax(0, 1fr) main content area.
@@ -98,13 +136,14 @@ export default function DashboardPage() {
               </p>
             </div>
 
-            <Link
-              to="/skills"
+            <button
+              type="button"
+              onClick={() => setPlacementOpen(true)}
               className="btn-primary inline-flex items-center gap-2 px-5 py-3 text-sm font-bold shadow-md transition-all self-start sm:self-auto flex-shrink-0"
             >
               <PlusCircle className="w-4 h-4" />
               <span>Enroll New Goal</span>
-            </Link>
+            </button>
           </header>
 
           {/* 4 KPI Stat Cards: Flexbox with Subtle Theme Shadows & Borders */}
@@ -281,6 +320,81 @@ export default function DashboardPage() {
             </div>
           </section>
 
+          <section className="grid grid-cols-1 gap-6 xl:grid-cols-3">
+            <div className="chart-card min-w-0 p-6 sm:p-7 xl:col-span-2">
+              <div className="mb-3 flex items-center gap-2">
+                <TrendingUp className="h-5 w-5 text-indigo-300" />
+                <div>
+                  <h3 className="text-lg font-extrabold">Skill Radar</h3>
+                  <p className="text-xs text-muted">Progress, study time, and placement scores by skill.</p>
+                </div>
+              </div>
+              {skillRadarError ? (
+                <p role="status" className="py-12 text-center text-sm text-rose-300">{skillRadarError}</p>
+              ) : skillRadar.length ? (
+                <div className="h-72 w-full">
+                  <Suspense fallback={<div className="flex h-full items-center justify-center text-sm text-slate-400">Loading chart…</div>}>
+                    <SkillRadarChart data={skillRadar} />
+                  </Suspense>
+                </div>
+              ) : (
+                <div className="flex h-72 items-center justify-center rounded-2xl border border-dashed border-slate-600/60 text-center text-sm text-slate-400">
+                  Enroll in a skill path to start building your radar.
+                </div>
+              )}
+            </div>
+
+            <div className="flex flex-col justify-between rounded-2xl border border-indigo-400/20 bg-gradient-to-br from-indigo-950 via-slate-900 to-slate-950 p-6 shadow-xl shadow-indigo-950/20">
+              <div>
+                <div className="flex items-center justify-between">
+                  <span className="inline-flex items-center gap-2 rounded-full bg-indigo-400/10 px-3 py-1 text-xs font-bold uppercase tracking-wider text-indigo-200">
+                    <CalendarDays className="h-4 w-4" /> Daily Challenge
+                  </span>
+                  <span className="inline-flex items-center gap-1 text-sm font-bold text-amber-300">
+                    <Flame className="h-4 w-4 fill-amber-300" />
+                    {dailyChallenge?.coding_streak ?? 0}
+                  </span>
+                </div>
+                {dailyChallengeError ? (
+                  <p role="status" className="mt-6 text-sm text-rose-300">{dailyChallengeError}</p>
+                ) : dailyChallenge ? (
+                  <>
+                    <p className="mt-6 text-xs font-semibold text-slate-400">
+                      {dailyChallenge.completed_today ? "Completed today" : "Ready when you are"}
+                    </p>
+                    <h3 className="mt-2 text-xl font-black text-white">
+                      {dailyChallenge.challenge.title}
+                    </h3>
+                    <p className="mt-2 line-clamp-3 text-sm leading-relaxed text-slate-300">
+                      {dailyChallenge.challenge.description}
+                    </p>
+                    <div className="mt-4 flex flex-wrap gap-2">
+                      <span className="rounded-full bg-indigo-400/10 px-3 py-1 text-xs font-bold capitalize text-indigo-200">
+                        {dailyChallenge.challenge.difficulty}
+                      </span>
+                      {dailyChallenge.challenge.topic_tags.map((tag) => (
+                        <span key={tag} className="rounded-full bg-slate-700/70 px-3 py-1 text-xs font-semibold text-slate-300">
+                          {tag}
+                        </span>
+                      ))}
+                    </div>
+                  </>
+                ) : (
+                  <p className="mt-6 text-sm text-slate-400">Loading today's challenge…</p>
+                )}
+              </div>
+              {dailyChallenge && (
+                <Link
+                  to={`/challenges?problem=${dailyChallenge.challenge.id}`}
+                  className="mt-6 inline-flex items-center justify-center gap-2 rounded-xl bg-indigo-500 px-4 py-3 text-sm font-bold text-white transition hover:bg-indigo-400"
+                >
+                  {dailyChallenge.completed_today ? "Practice again" : "Take the challenge"}
+                  <ArrowRight className="h-4 w-4" />
+                </Link>
+              )}
+            </div>
+          </section>
+
           {/* Enrolled Learning Paths Section (.panel) */}
           <section className="panel p-6 sm:p-8">
             <div className="flex flex-wrap items-center justify-between gap-4 mb-6 pb-4 border-b border-[#dde3ec]">
@@ -375,6 +489,12 @@ export default function DashboardPage() {
           </section>
         </main>
       </div>
+      {placementOpen && (
+        <PlacementQuizModal
+          onClose={() => setPlacementOpen(false)}
+          onComplete={(pathId) => navigate(`/paths/${pathId}`)}
+        />
+      )}
     </div>
   );
 }

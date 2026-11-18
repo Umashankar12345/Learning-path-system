@@ -20,7 +20,7 @@ function App() {
     <AuthProvider>
       <ToastProvider>
         <Router>
-          <div className="min-h-screen flex flex-col bg-slate-50 font-sans text-slate-900 antialiased selection:bg-indigo-500 selection:text-white">
+          <div className="app-shell min-h-screen flex flex-col font-sans antialiased selection:bg-indigo-500 selection:text-white">
             <Navbar />
             <main className="flex-1 flex flex-col">
               <Routes>

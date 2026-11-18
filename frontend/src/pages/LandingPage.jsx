@@ -32,10 +32,10 @@ export default function LandingPage() {
   }, []);
 
   return (
-    <div className="min-h-screen bg-slate-50/60 text-slate-900">
+    <div className="landing-page min-h-screen">
       {/* Centered Hero Section */}
-      <section className="relative overflow-hidden py-20 lg:py-28">
-        <div className="max-w-4xl mx-auto px-4 sm:px-6 text-center space-y-6">
+      <section className="home-hero relative overflow-hidden py-20 lg:py-28">
+        <div className="home-hero-content relative z-10 max-w-4xl mx-auto px-4 sm:px-6 text-center space-y-6">
           <div className="inline-flex items-center gap-2 bg-indigo-50 border border-indigo-200 text-indigo-700 px-4 py-1.5 rounded-full text-xs font-bold uppercase tracking-wider shadow-sm">
             <Sparkles className="w-4 h-4" />
             Personalized Learning Path Dashboard
@@ -99,7 +99,7 @@ export default function LandingPage() {
       </section>
 
       {/* 3 Pillar Features with Centered Cards */}
-      <section className="py-20 bg-white border-y border-slate-200">
+      <section className="home-feature-section py-20 border-y">
         <div className="max-w-5xl mx-auto px-4 sm:px-6">
           <div className="text-center max-w-xl mx-auto mb-16">
             <h2 className="text-3xl sm:text-4xl font-black tracking-tight text-slate-900">
@@ -110,9 +110,9 @@ export default function LandingPage() {
             </p>
           </div>
 
-          <div className="grid md:grid-cols-3 gap-8">
+          <div className="home-feature-grid grid md:grid-cols-3 gap-8">
             {/* Pillar 1 */}
-            <div className="p-8 bg-slate-50 rounded-3xl border border-slate-200 hover:border-indigo-300 hover:shadow-lg transition-all flex flex-col justify-between">
+            <div className="home-feature-card p-8 rounded-3xl border flex flex-col justify-between">
               <div>
                 <div className="w-14 h-14 rounded-2xl bg-indigo-100 text-indigo-600 flex items-center justify-center mb-6 shadow-sm">
                   <Target className="w-7 h-7" />
@@ -128,7 +128,7 @@ export default function LandingPage() {
             </div>
 
             {/* Pillar 2 */}
-            <div className="p-8 bg-slate-50 rounded-3xl border border-slate-200 hover:border-indigo-300 hover:shadow-lg transition-all flex flex-col justify-between">
+            <div className="home-feature-card p-8 rounded-3xl border flex flex-col justify-between">
               <div>
                 <div className="w-14 h-14 rounded-2xl bg-violet-100 text-violet-600 flex items-center justify-center mb-6 shadow-sm">
                   <BarChart3 className="w-7 h-7" />
@@ -144,7 +144,7 @@ export default function LandingPage() {
             </div>
 
             {/* Pillar 3 */}
-            <div className="p-8 bg-slate-50 rounded-3xl border border-slate-200 hover:border-indigo-300 hover:shadow-lg transition-all flex flex-col justify-between">
+            <div className="home-feature-card p-8 rounded-3xl border flex flex-col justify-between">
               <div>
                 <div className="w-14 h-14 rounded-2xl bg-emerald-100 text-emerald-600 flex items-center justify-center mb-6 shadow-sm">
                   <CheckCircle2 className="w-7 h-7" />
@@ -180,7 +180,7 @@ export default function LandingPage() {
             </div>
             <Link
               to="/challenges"
-              className="inline-flex items-center gap-2 rounded-xl bg-white px-5 py-3 text-sm font-bold text-indigo-950 transition hover:bg-indigo-50"
+              className="home-challenge-cta inline-flex items-center gap-2 rounded-xl px-5 py-3 text-sm font-bold transition"
             >
               Open Coding Arena <ArrowRight className="h-4 w-4" />
             </Link>

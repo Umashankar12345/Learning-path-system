@@ -9,8 +9,11 @@ from django.test import override_settings
 from unittest.mock import patch
 
 from .models import (
+    AssessmentAttempt,
     CodingAttempt,
     CodingChallenge,
+    CodeSubmission,
+    PlacementQuestion,
     Skill,
     Resource,
     LearningPath,
@@ -64,6 +67,14 @@ class LearningPathAPITestCase(TestCase):
             difficulty=3,
             duration_minutes=120,
         )
+        for index in range(10):
+            PlacementQuestion.objects.create(
+                skill=self.skill,
+                question_text=f"Placement question {index + 1}",
+                options=["Correct option", "Choice B", "Choice C", "Choice D"],
+                correct_option=0,
+                difficulty=1 if index < 3 else 2 if index < 7 else 3,
+            )
 
     def test_user_signup(self):
         """Test signup creates a new user and returns JWT tokens."""
@@ -122,6 +133,63 @@ class LearningPathAPITestCase(TestCase):
         self.assertEqual(response.status_code, status.HTTP_503_SERVICE_UNAVAILABLE)
         self.assertIn("GOOGLE_CLIENT_ID", response.data["error"])
 
+    def test_swagger_ui_includes_the_custom_theme(self):
+        response = self.client.get("/api/docs/")
+
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertContains(response, "#0b1120")
+        self.assertContains(response, "#4f46e5")
+
+    @patch("learning.views.requests.get")
+    def test_github_repository_lookup_returns_only_public_repositories(self, github_get):
+        github_get.return_value.status_code = 200
+        github_get.return_value.json.return_value = [
+            {
+                "id": 101,
+                "name": "learning-demo",
+                "full_name": "octocat/learning-demo",
+                "html_url": "https://github.com/octocat/learning-demo",
+                "description": "A public learning project",
+                "language": "Python",
+                "stargazers_count": 12,
+                "updated_at": "2026-11-17T10:00:00Z",
+                "default_branch": "main",
+                "private": False,
+            },
+            {
+                "id": 102,
+                "name": "private-demo",
+                "full_name": "octocat/private-demo",
+                "html_url": "https://github.com/octocat/private-demo",
+                "description": None,
+                "language": None,
+                "stargazers_count": 0,
+                "updated_at": "2026-11-17T10:00:00Z",
+                "default_branch": "main",
+                "private": True,
+            },
+        ]
+        self.client.force_authenticate(user=self.user1)
+
+        response = self.client.get(
+            reverse("github-public-repositories", kwargs={"username": "octocat"})
+        )
+
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertEqual(len(response.data), 1)
+        self.assertEqual(response.data[0]["full_name"], "octocat/learning-demo")
+        self.assertEqual(github_get.call_args.kwargs["timeout"], 8)
+
+    @patch("learning.views.requests.get")
+    def test_github_repository_lookup_rejects_invalid_username(self, github_get):
+        self.client.force_authenticate(user=self.user1)
+        response = self.client.get(
+            reverse("github-public-repositories", kwargs={"username": "invalid_user"})
+        )
+
+        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+        github_get.assert_not_called()
+
     def test_create_learning_path_ordered_by_difficulty(self):
         """Test creating a learning path populates items ordered by difficulty."""
         self.client.force_authenticate(user=self.user1)
@@ -138,6 +206,141 @@ class LearningPathAPITestCase(TestCase):
         self.assertEqual(items[0].resource.difficulty, 1)
         self.assertEqual(items[1].resource.difficulty, 2)
         self.assertEqual(items[2].resource.difficulty, 3)
+
+    def test_placement_quiz_hides_answers_and_grades_skill_levels(self):
+        quiz_response = self.client.get(
+            reverse("placement-quiz", kwargs={"pk": self.skill.id})
+        )
+        self.assertEqual(quiz_response.status_code, status.HTTP_200_OK)
+        self.assertEqual(len(quiz_response.data), 10)
+        self.assertNotIn("correct_option", quiz_response.data[0])
+
+        self.client.force_authenticate(user=self.user1)
+        answers = [
+            {
+                "question_id": question["id"],
+                "selected_option": 0 if question["difficulty"] < 3 else 1,
+            }
+            for question in quiz_response.data
+        ]
+        response = self.client.post(
+            reverse("placement-submit", kwargs={"pk": self.skill.id}),
+            {"answers": answers},
+            format="json",
+        )
+        self.assertEqual(response.status_code, status.HTTP_201_CREATED, response.data)
+        self.assertEqual(response.data["score"], 70)
+        self.assertEqual(response.data["recommended_level"], 3)
+        self.assertEqual(response.data["total_questions"], 10)
+        self.assertEqual(len(response.data["skill_gap_breakdown"]), 3)
+        self.assertTrue(
+            AssessmentAttempt.objects.filter(
+                user=self.user1,
+                skill=self.skill,
+                recommended_level=3,
+            ).exists()
+        )
+        path = LearningPath.objects.get(user=self.user1, skill=self.skill)
+        self.assertTrue(path.items.get(resource=self.resource1).completed)
+        self.assertTrue(path.items.get(resource=self.resource2).completed)
+        self.assertFalse(path.items.get(resource=self.resource3).completed)
+
+    def test_placement_submission_rejects_missing_or_duplicate_answers(self):
+        self.client.force_authenticate(user=self.user1)
+        url = reverse("placement-submit", kwargs={"pk": self.skill.id})
+        questions = list(self.skill.placement_questions.all())
+        response = self.client.post(
+            url,
+            {"answers": [{"question_id": questions[0].id, "selected_option": 0}]},
+            format="json",
+        )
+        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+        self.assertFalse(AssessmentAttempt.objects.exists())
+
+    def test_seeded_catalog_skills_all_have_ten_safe_mcq_questions(self):
+        from seed_data import (
+            PLACEMENT_QUESTION_BANKS,
+            seed_additional_skills,
+            seed_placement_questions,
+        )
+
+        for skill_name in PLACEMENT_QUESTION_BANKS:
+            Skill.objects.get_or_create(name=skill_name)
+        seed_additional_skills()
+        seed_placement_questions()
+        self.client.force_authenticate(user=self.user1)
+
+        for skill_name in PLACEMENT_QUESTION_BANKS:
+            with self.subTest(skill=skill_name):
+                skill = Skill.objects.get(name=skill_name)
+                response = self.client.get(
+                    reverse("placement-quiz", kwargs={"pk": skill.id})
+                )
+                self.assertEqual(response.status_code, status.HTTP_200_OK)
+                self.assertEqual(len(response.data), 10)
+                self.assertNotIn("correct_option", response.data[0])
+                self.assertEqual(
+                    {question["difficulty"] for question in response.data},
+                    {1, 2, 3},
+                )
+                self.assertTrue(
+                    all(len(question["options"]) == 4 for question in response.data)
+                )
+                stored_questions = PlacementQuestion.objects.filter(skill=skill)
+                self.assertEqual(stored_questions.count(), 10)
+                self.assertTrue(
+                    all(
+                        0 <= question.correct_option < len(question.options)
+                        for question in stored_questions
+                    )
+                )
+                submit_response = self.client.post(
+                    reverse("placement-submit", kwargs={"pk": skill.id}),
+                    {
+                        "answers": [
+                            {
+                                "question_id": question.id,
+                                "selected_option": question.correct_option,
+                            }
+                            for question in stored_questions
+                        ]
+                    },
+                    format="json",
+                )
+                self.assertEqual(
+                    submit_response.status_code,
+                    status.HTTP_201_CREATED,
+                    submit_response.data,
+                )
+                self.assertEqual(submit_response.data["score"], 100)
+
+    def test_skill_radar_normalizes_completion_hours_and_assessment(self):
+        path = LearningPath.objects.create(user=self.user1, skill=self.skill)
+        PathItem.objects.create(
+            path=path,
+            resource=self.resource1,
+            order=1,
+            completed=True,
+        )
+        PathItem.objects.create(path=path, resource=self.resource2, order=2)
+        PathItem.objects.create(path=path, resource=self.resource3, order=3)
+        AssessmentAttempt.objects.create(
+            user=self.user1,
+            skill=self.skill,
+            score=80,
+            correct_answers=8,
+            total_questions=10,
+            recommended_level=2,
+        )
+        self.client.force_authenticate(user=self.user1)
+        response = self.client.get(reverse("skill-radar"))
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertEqual(len(response.data), 1)
+        self.assertEqual(response.data[0]["completed_modules"], 1)
+        self.assertEqual(response.data[0]["total_modules"], 3)
+        self.assertEqual(response.data[0]["study_hours"], 1.0)
+        self.assertEqual(response.data[0]["quiz_score"], 80)
+        self.assertEqual(response.data[0]["score"], 62)
 
     def test_mark_item_complete_and_rate(self):
         """Test marking an item complete records completed_at, and rating updates item."""
@@ -300,6 +503,114 @@ class LearningPathAPITestCase(TestCase):
         attempt = CodingAttempt.objects.get(pk=attempt_id)
         self.assertEqual(attempt.source_code, "print(sum(map(int, input().split())))")
         self.assertIsNotNone(attempt.submitted_at)
+        self.assertEqual(CodeSubmission.objects.count(), 1)
+        self.assertEqual(CodeSubmission.objects.first().status, CodeSubmission.Status.PARTIAL)
+
+    @override_settings(JUDGE0_API_URL="https://judge0.example")
+    def test_arena_filters_and_records_code_submission_results(self):
+        response = self.client.get(
+            reverse("arena-problem-list"),
+            {"difficulty": "easy", "topic": "python"},
+        )
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertTrue(response.data)
+        self.assertTrue(all(problem["difficulty"] == "easy" for problem in response.data))
+
+        challenge = CodingChallenge.objects.get(slug="sum-two-integers")
+        self.client.force_authenticate(user=self.user1)
+        with patch(
+            "learning.views.run_test_case",
+            return_value={"status": "accepted", "time": "0.01"},
+        ) as judge:
+            response = self.client.post(
+                reverse("arena-problem-submit", kwargs={"pk": challenge.id}),
+                {
+                    "source_code": "print(sum(map(int, input().split())))",
+                    "language": "python3",
+                },
+                format="json",
+            )
+        self.assertEqual(response.status_code, status.HTTP_201_CREATED, response.data)
+        self.assertEqual(response.data["passed_count"], 3)
+        self.assertEqual(response.data["total_count"], 3)
+        self.assertEqual(response.data["status"], CodeSubmission.Status.ACCEPTED)
+        self.assertEqual(len(response.data["test_results"]), 3)
+        self.assertEqual(judge.call_count, 3)
+
+        history = self.client.get(reverse("arena-submission-history"))
+        self.assertEqual(history.status_code, status.HTTP_200_OK)
+        self.assertEqual(len(history.data), 1)
+        self.assertEqual(history.data[0]["challenge"], challenge.id)
+
+    def test_arena_reference_solution_requires_an_attempt(self):
+        challenge = CodingChallenge.objects.get(slug="sum-two-integers")
+        self.client.force_authenticate(user=self.user1)
+        url = reverse("arena-problem-solution", kwargs={"pk": challenge.id})
+        locked = self.client.get(url)
+        self.assertEqual(locked.status_code, status.HTTP_403_FORBIDDEN)
+
+        CodeSubmission.objects.create(
+            user=self.user1,
+            challenge=challenge,
+            source_code="print(1)",
+            status=CodeSubmission.Status.WRONG_ANSWER,
+            passed_count=0,
+            total_count=3,
+        )
+        unlocked = self.client.get(url)
+        self.assertEqual(unlocked.status_code, status.HTTP_200_OK)
+        self.assertIn("print", unlocked.data["reference_solution"])
+
+    def test_daily_challenge_returns_submission_and_streak_state(self):
+        self.client.force_authenticate(user=self.user1)
+        response = self.client.get(reverse("arena-daily-challenge"))
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        challenge = CodingChallenge.objects.get(pk=response.data["challenge"]["id"])
+        CodeSubmission.objects.create(
+            user=self.user1,
+            challenge=challenge,
+            source_code="print(1)",
+            status=CodeSubmission.Status.ACCEPTED,
+            passed_count=3,
+            total_count=3,
+        )
+        response = self.client.get(reverse("arena-daily-challenge"))
+        self.assertTrue(response.data["completed_today"])
+        self.assertEqual(response.data["coding_streak"], 1)
+
+    def test_linked_module_requires_an_accepted_coding_submission(self):
+        challenge = CodingChallenge.objects.get(slug="sum-two-integers")
+        self.resource1.coding_challenge = challenge
+        self.resource1.save(update_fields=["coding_challenge"])
+        path = LearningPath.objects.create(user=self.user1, skill=self.skill)
+        item = PathItem.objects.create(path=path, resource=self.resource1, order=1)
+        self.client.force_authenticate(user=self.user1)
+        complete_url = reverse("item-complete", kwargs={"pk": item.id})
+
+        response = self.client.post(
+            complete_url,
+            {"action": "complete"},
+            format="json",
+        )
+        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+        self.assertFalse(item.completed)
+
+        CodeSubmission.objects.create(
+            user=self.user1,
+            challenge=challenge,
+            source_code="print(5)",
+            status=CodeSubmission.Status.ACCEPTED,
+            passed_count=3,
+            total_count=3,
+        )
+        response = self.client.post(
+            complete_url,
+            {"action": "complete"},
+            format="json",
+        )
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        item.refresh_from_db()
+        self.assertTrue(item.completed)
 
     @override_settings(JUDGE0_API_URL="")
     def test_coding_challenge_refuses_to_start_without_live_judge_config(self):

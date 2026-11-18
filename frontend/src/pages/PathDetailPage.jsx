@@ -29,6 +29,10 @@ export default function PathDetailPage() {
   const [downloadingCert, setDownloadingCert] = useState(false);
   const [hoveredStars, setHoveredStars] = useState({});
   const [githubUrls, setGithubUrls] = useState({});
+  const [githubUsernames, setGithubUsernames] = useState({});
+  const [githubRepositories, setGithubRepositories] = useState({});
+  const [githubLookupErrors, setGithubLookupErrors] = useState({});
+  const [loadingGithubLookupId, setLoadingGithubLookupId] = useState(null);
   const [reflections, setReflections] = useState({});
   const [submittingProjectId, setSubmittingProjectId] = useState(null);
   const toast = useToast();
@@ -106,6 +110,37 @@ export default function PathDetailPage() {
       toast.error(detail || "Could not submit project. Check the repository URL and try again.");
     } finally {
       setSubmittingProjectId(null);
+    }
+  };
+
+  const handleFindPublicRepositories = async (itemId) => {
+    const username = (githubUsernames[itemId] || "").trim();
+    if (!username) {
+      toast.info("Enter a GitHub username to browse public repositories.");
+      return;
+    }
+
+    setLoadingGithubLookupId(itemId);
+    setGithubLookupErrors((previous) => ({ ...previous, [itemId]: "" }));
+    try {
+      const response = await api.get(
+        `/github/users/${encodeURIComponent(username)}/repositories/`
+      );
+      setGithubRepositories((previous) => ({
+        ...previous,
+        [itemId]: response.data,
+      }));
+    } catch (err) {
+      console.error("Failed to browse GitHub repositories:", err);
+      setGithubLookupErrors((previous) => ({
+        ...previous,
+        [itemId]:
+          err.response?.data?.error ||
+          "Could not load public repositories. Check the username and try again.",
+      }));
+      setGithubRepositories((previous) => ({ ...previous, [itemId]: [] }));
+    } finally {
+      setLoadingGithubLookupId(null);
     }
   };
 
@@ -451,6 +486,17 @@ export default function PathDetailPage() {
                       </div>
                     </div>
 
+                    {item.resource.coding_challenge_id && (
+                      <Link
+                        to={`/challenges?problem=${item.resource.coding_challenge_id}`}
+                        className="mt-4 inline-flex items-center gap-2 rounded-xl border border-indigo-200 bg-indigo-50 px-3.5 py-2.5 text-xs font-bold text-indigo-700 transition hover:border-indigo-300 hover:bg-indigo-100"
+                      >
+                        <Code2 className="h-4 w-4" />
+                        Try mini-challenge: {item.resource.coding_challenge_title}
+                        <ExternalLink className="h-3.5 w-3.5" />
+                      </Link>
+                    )}
+
                     {item.resource.resource_type === "project" && (
                       <div className="mt-5 rounded-2xl border border-indigo-100 bg-indigo-50/60 p-4 sm:p-5">
                         <div className="flex items-start gap-3">
@@ -460,6 +506,90 @@ export default function PathDetailPage() {
                             <p className="mt-1 text-xs leading-relaxed text-slate-600">
                               Share a GitHub repository. Your instructor can review the code and leave actionable feedback.
                             </p>
+                            <label className="mt-4 block text-xs font-bold text-slate-700" htmlFor={`github-user-${item.id}`}>
+                              Browse public repositories
+                            </label>
+                            <div className="mt-1.5 flex flex-wrap gap-2">
+                              <input
+                                id={`github-user-${item.id}`}
+                                type="text"
+                                value={githubUsernames[item.id] || ""}
+                                onChange={(event) =>
+                                  setGithubUsernames((previous) => ({
+                                    ...previous,
+                                    [item.id]: event.target.value,
+                                  }))
+                                }
+                                placeholder="GitHub username"
+                                autoComplete="off"
+                                className="min-w-0 flex-1 rounded-xl border border-slate-300 bg-white px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500"
+                              />
+                              <button
+                                type="button"
+                                onClick={() => handleFindPublicRepositories(item.id)}
+                                disabled={loadingGithubLookupId === item.id}
+                                className="inline-flex items-center gap-2 rounded-xl border border-indigo-200 bg-white px-3.5 py-2.5 text-xs font-bold text-indigo-700 transition hover:bg-indigo-50 disabled:cursor-wait disabled:opacity-60"
+                              >
+                                {loadingGithubLookupId === item.id ? (
+                                  <Loader2 className="h-4 w-4 animate-spin" />
+                                ) : (
+                                  <Github className="h-4 w-4" />
+                                )}
+                                Browse repos
+                              </button>
+                            </div>
+                            <p className="mt-1.5 text-[11px] text-slate-500">
+                              Public repositories only; no GitHub credentials are requested.
+                            </p>
+                            {githubLookupErrors[item.id] && (
+                              <p role="alert" className="mt-2 text-xs font-semibold text-rose-600">
+                                {githubLookupErrors[item.id]}
+                              </p>
+                            )}
+                            {(githubRepositories[item.id] || []).length > 0 && (
+                              <div className="mt-3 max-h-52 space-y-2 overflow-y-auto rounded-xl border border-slate-200 bg-white p-2">
+                                {githubRepositories[item.id].map((repository) => {
+                                  const selected =
+                                    githubUrls[item.id] === repository.html_url;
+                                  return (
+                                    <button
+                                      key={repository.id}
+                                      type="button"
+                                      onClick={() =>
+                                        setGithubUrls((previous) => ({
+                                          ...previous,
+                                          [item.id]: repository.html_url,
+                                        }))
+                                      }
+                                      className={`block w-full rounded-lg border px-3 py-2 text-left transition ${
+                                        selected
+                                          ? "border-indigo-300 bg-indigo-50"
+                                          : "border-transparent hover:border-slate-200 hover:bg-slate-50"
+                                      }`}
+                                    >
+                                      <span className="flex items-center justify-between gap-3">
+                                        <span className="truncate text-xs font-bold text-slate-800">
+                                          {repository.full_name}
+                                        </span>
+                                        <span className="shrink-0 text-[11px] text-slate-500">
+                                          ★ {repository.stargazers_count}
+                                        </span>
+                                      </span>
+                                      <span className="mt-1 block truncate text-[11px] text-slate-500">
+                                        {repository.description || repository.language || "Public repository"}
+                                      </span>
+                                    </button>
+                                  );
+                                })}
+                              </div>
+                            )}
+                            {githubRepositories[item.id]?.length === 0 &&
+                              !githubLookupErrors[item.id] &&
+                              loadingGithubLookupId !== item.id && (
+                                <p className="mt-2 text-xs text-slate-500">
+                                  No public repositories were found for that username.
+                                </p>
+                              )}
                             <label className="mt-4 block text-xs font-bold text-slate-700" htmlFor={`github-url-${item.id}`}>
                               GitHub repository URL
                             </label>

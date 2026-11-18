@@ -15,6 +15,36 @@ class Skill(models.Model):
         return self.name
 
 
+class PlacementQuestion(models.Model):
+    class Difficulty(models.IntegerChoices):
+        BEGINNER = 1, "Beginner"
+        INTERMEDIATE = 2, "Intermediate"
+        ADVANCED = 3, "Advanced"
+
+    skill = models.ForeignKey(
+        Skill,
+        on_delete=models.CASCADE,
+        related_name="placement_questions",
+    )
+    question_text = models.TextField()
+    options = models.JSONField()
+    correct_option = models.PositiveSmallIntegerField()
+    difficulty = models.PositiveSmallIntegerField(choices=Difficulty.choices)
+    is_active = models.BooleanField(default=True)
+
+    class Meta:
+        ordering = ["difficulty", "id"]
+        constraints = [
+            models.UniqueConstraint(
+                fields=["skill", "question_text"],
+                name="unique_placement_question_per_skill",
+            )
+        ]
+
+    def __str__(self):
+        return f"{self.skill.name}: {self.question_text[:80]}"
+
+
 class Resource(models.Model):
     TYPE_CHOICES = [
         ("video", "Video"),
@@ -30,6 +60,13 @@ class Resource(models.Model):
     difficulty = models.IntegerField(default=1)  # 1 = Beginner, 2 = Intermediate, 3 = Advanced
     duration_minutes = models.IntegerField(default=30)
     description = models.TextField(blank=True)
+    coding_challenge = models.ForeignKey(
+        "CodingChallenge",
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name="associated_resources",
+    )
     created_at = models.DateTimeField(auto_now_add=True)
 
     class Meta:
@@ -74,6 +111,33 @@ class LearningPath(models.Model):
     @property
     def completed_duration_minutes(self):
         return sum(item.resource.duration_minutes for item in self.items.filter(completed=True))
+
+
+class AssessmentAttempt(models.Model):
+    user = models.ForeignKey(
+        User,
+        on_delete=models.CASCADE,
+        related_name="assessment_attempts",
+    )
+    skill = models.ForeignKey(
+        Skill,
+        on_delete=models.CASCADE,
+        related_name="assessment_attempts",
+    )
+    score = models.PositiveSmallIntegerField()
+    correct_answers = models.PositiveSmallIntegerField()
+    total_questions = models.PositiveSmallIntegerField()
+    recommended_level = models.PositiveSmallIntegerField(
+        choices=PlacementQuestion.Difficulty.choices
+    )
+    skill_gap_breakdown = models.JSONField(default=list)
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        ordering = ["-created_at"]
+
+    def __str__(self):
+        return f"{self.user.username}: {self.skill.name} placement ({self.score}%)"
 
 
 class PathItem(models.Model):
@@ -141,23 +205,27 @@ class ProjectSubmission(models.Model):
 
 class CodingChallenge(models.Model):
     class Difficulty(models.TextChoices):
-        BEGINNER = "beginner", "Beginner"
-        INTERMEDIATE = "intermediate", "Intermediate"
-        ADVANCED = "advanced", "Advanced"
+        EASY = "easy", "Easy"
+        MEDIUM = "medium", "Medium"
+        HARD = "hard", "Hard"
 
     slug = models.SlugField(unique=True)
     title = models.CharField(max_length=160)
     description = models.TextField()
     difficulty = models.CharField(
-        max_length=12,
+        max_length=8,
         choices=Difficulty.choices,
-        default=Difficulty.BEGINNER,
+        default=Difficulty.EASY,
     )
+    topic_tags = models.JSONField(default=list, blank=True)
     starter_code = models.TextField(blank=True)
+    reference_solution = models.TextField(blank=True)
     language_id = models.PositiveSmallIntegerField(default=71)
     duration_minutes = models.PositiveSmallIntegerField(default=20)
     order = models.PositiveSmallIntegerField(default=1)
     is_active = models.BooleanField(default=True)
+    is_daily_challenge = models.BooleanField(default=False)
+    challenge_date = models.DateField(null=True, blank=True)
 
     class Meta:
         ordering = ["order", "id"]
@@ -218,6 +286,40 @@ class CodingAttempt(models.Model):
 
     class Meta:
         ordering = ["-started_at"]
+
+    def __str__(self):
+        return f"{self.user.username}: {self.challenge.title} ({self.status})"
+
+
+class CodeSubmission(models.Model):
+    class Status(models.TextChoices):
+        ACCEPTED = "accepted", "Accepted"
+        PARTIAL = "partial", "Partially correct"
+        WRONG_ANSWER = "wrong_answer", "Wrong answer"
+        TIME_LIMIT = "time_limit", "Time limit exceeded"
+        COMPILE_ERROR = "compile_error", "Compilation error"
+        RUNTIME_ERROR = "runtime_error", "Runtime error"
+
+    user = models.ForeignKey(
+        User,
+        on_delete=models.CASCADE,
+        related_name="code_submissions",
+    )
+    challenge = models.ForeignKey(
+        CodingChallenge,
+        on_delete=models.CASCADE,
+        related_name="code_submissions",
+    )
+    language = models.CharField(max_length=32, default="python3")
+    source_code = models.TextField()
+    passed_count = models.PositiveSmallIntegerField(default=0)
+    total_count = models.PositiveSmallIntegerField(default=0)
+    status = models.CharField(max_length=16, choices=Status.choices)
+    runtime_ms = models.PositiveIntegerField(null=True, blank=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        ordering = ["-created_at"]
 
     def __str__(self):
         return f"{self.user.username}: {self.challenge.title} ({self.status})"

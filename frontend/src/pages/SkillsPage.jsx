@@ -3,6 +3,7 @@ import { useNavigate } from "react-router-dom";
 import api from "../api/client";
 import { useAuth } from "../context/AuthContext";
 import { useToast } from "../context/ToastContext";
+import PlacementQuizModal from "../components/PlacementQuizModal";
 import {
   BookOpen,
   Sparkles,
@@ -18,7 +19,8 @@ import {
 export default function SkillsPage() {
   const [skills, setSkills] = useState([]);
   const [loading, setLoading] = useState(true);
-  const [creatingId, setCreatingId] = useState(null);
+  const [placementSkill, setPlacementSkill] = useState(null);
+  const [activeCategory, setActiveCategory] = useState("All");
   const { isAuthenticated } = useAuth();
   const navigate = useNavigate();
   const toast = useToast();
@@ -38,25 +40,20 @@ export default function SkillsPage() {
     fetchSkills();
   }, []);
 
-  const handleStartPath = async (skill) => {
+  const handleStartPath = (skill) => {
     if (!isAuthenticated) {
       toast.info("Please log in or sign up to create your learning path.");
       navigate("/login");
       return;
     }
-
-    setCreatingId(skill.id);
-    try {
-      const res = await api.post("/paths/", { skill_id: skill.id });
-      toast.success(`Generated learning path for "${skill.name}"!`);
-      navigate(`/paths/${res.data.id}`);
-    } catch (err) {
-      console.error("Failed to generate path:", err);
-      toast.error("Unable to generate path. Please try again.");
-    } finally {
-      setCreatingId(null);
-    }
+    setPlacementSkill(skill);
   };
+
+  const categories = ["All", ...new Set(skills.map((skill) => skill.category))];
+  const visibleSkills =
+    activeCategory === "All"
+      ? skills
+      : skills.filter((skill) => skill.category === activeCategory);
 
   if (loading) {
     return (
@@ -70,7 +67,7 @@ export default function SkillsPage() {
   }
 
   return (
-    <div className="min-h-screen bg-slate-50/60 py-16 px-4 sm:px-6 lg:px-8">
+    <div className="skills-page min-h-screen py-16 px-4 sm:px-6 lg:px-8">
       <div className="max-w-5xl mx-auto space-y-12">
         {/* Centered Hero Header */}
         <div className="text-center max-w-2xl mx-auto">
@@ -98,11 +95,36 @@ export default function SkillsPage() {
             </p>
           </div>
         ) : (
-          <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-6">
-            {skills.map((skill) => (
+          <>
+            <div
+              className="flex flex-wrap justify-center gap-2"
+              role="group"
+              aria-label="Filter skills by category"
+            >
+              {categories.map((category) => {
+                const isActive = activeCategory === category;
+                return (
+                  <button
+                    key={category}
+                    type="button"
+                    aria-pressed={isActive}
+                    onClick={() => setActiveCategory(category)}
+                    className={`rounded-full border px-4 py-2 text-sm font-bold transition ${
+                      isActive
+                        ? "border-indigo-600 bg-indigo-600 text-white shadow-sm"
+                        : "border-slate-200 bg-white text-slate-600 hover:border-indigo-300 hover:text-indigo-700"
+                    }`}
+                  >
+                    {category}
+                  </button>
+                );
+              })}
+            </div>
+            <div className="skills-grid grid md:grid-cols-2 lg:grid-cols-3 gap-6">
+            {visibleSkills.map((skill) => (
               <div
                 key={skill.id}
-                className="bg-white rounded-3xl border border-slate-200 p-7 flex flex-col justify-between hover:shadow-xl hover:border-indigo-300 transition-all group"
+                className="skill-card rounded-3xl border p-7 flex flex-col justify-between group"
               >
                 <div>
                   <div className="flex flex-wrap items-center gap-2 mb-4">
@@ -131,27 +153,25 @@ export default function SkillsPage() {
 
                   <button
                     onClick={() => handleStartPath(skill)}
-                    disabled={creatingId === skill.id}
-                    className="inline-flex items-center gap-2 px-5 py-2.5 rounded-xl text-xs font-bold text-white bg-indigo-600 hover:bg-indigo-700 transition-all shadow-sm disabled:opacity-50"
+                    className="inline-flex items-center gap-2 px-5 py-2.5 rounded-xl text-xs font-bold text-white bg-indigo-600 hover:bg-indigo-700 transition-all shadow-sm"
                   >
-                    {creatingId === skill.id ? (
-                      <>
-                        <Loader2 className="w-3.5 h-3.5 animate-spin" />
-                        Generating...
-                      </>
-                    ) : (
-                      <>
-                        Start Path
-                        <ArrowRight className="w-3.5 h-3.5" />
-                      </>
-                    )}
+                    Find my level
+                    <ArrowRight className="w-3.5 h-3.5" />
                   </button>
                 </div>
               </div>
             ))}
-          </div>
+            </div>
+          </>
         )}
       </div>
+      {placementSkill && (
+        <PlacementQuizModal
+          initialSkill={placementSkill}
+          onClose={() => setPlacementSkill(null)}
+          onComplete={(pathId) => navigate(`/paths/${pathId}`)}
+        />
+      )}
     </div>
   );
 }
