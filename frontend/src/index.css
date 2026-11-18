@@ -120,6 +120,35 @@ body {
   background-color: rgba(51, 65, 85, .62);
 }
 
+.app-shell input:not([type="checkbox"]):not([type="radio"]):not([type="range"]):not([type="hidden"]):not([type="file"]),
+.app-shell textarea,
+.app-shell select {
+  color: #f1f5f9;
+  color-scheme: dark;
+  background-color: #111a2d;
+  border-color: rgba(148, 163, 184, .28);
+  caret-color: #a5b4fc;
+}
+
+.app-shell input:not([type="checkbox"]):not([type="radio"]):not([type="range"]):not([type="hidden"]):not([type="file"]):focus,
+.app-shell textarea:focus,
+.app-shell select:focus {
+  border-color: #818cf8;
+  outline: none;
+  box-shadow: 0 0 0 3px rgba(99, 102, 241, .3);
+}
+
+.app-shell input::placeholder,
+.app-shell textarea::placeholder {
+  color: #94a3b8;
+  opacity: 1;
+}
+
+.app-shell option {
+  color: #f1f5f9;
+  background-color: #111a2d;
+}
+
 .app-shell [class*="hover:bg-white"]:hover { background-color: rgba(51, 65, 85, .72); }
 .app-shell [class*="hover:bg-slate-50"]:hover,
 .app-shell [class*="hover:bg-slate-100"]:hover { background-color: rgba(51, 65, 85, .62); }
